@@ -743,6 +743,52 @@ function LibroFamiliar() {
     if (!res) setErrorMsg("No se pudo guardar el consumo de tarjeta del hogar. Probá de nuevo.");
   }
 
+  // Reconstruye registros de "Tarjetas del hogar" que se perdieron: puede pasar que el guardado de
+  // los movimientos (entries) funcione pero el guardado del registro maestro (tarjetasHogar) falle
+  // por separado (dos llamadas de red distintas). El resultado es un consumo que aparece en el
+  // detalle de tarjeta de cada persona pero no en la lista "Tarjetas del hogar". Esta función busca,
+  // dentro de los movimientos del mes actual, cualquier consumo de tarjeta del hogar (identificado
+  // por tener tarjetaId === hogarId, que es como los genera crearConsumoTarjetaHogar) cuyo id no
+  // esté en la lista de registros, y lo reconstruye a partir de esos mismos movimientos.
+  async function repararTarjetasHogar() {
+    const candidatos = entries.filter(e => e.tarjetaId && e.hogarId && e.tarjetaId === e.hogarId);
+    const porId = {};
+    candidatos.forEach(e => {
+      if (!porId[e.tarjetaId]) porId[e.tarjetaId] = [];
+      porId[e.tarjetaId].push(e);
+    });
+    const idsExistentes = new Set(tarjetasHogar.map(p => p.id));
+    const nuevosRegistros = [];
+    Object.entries(porId).forEach(([id, grupo]) => {
+      if (idsExistentes.has(id)) return;
+      const base = grupo[0];
+      const montoCuotaTotal = Math.round(grupo.reduce((s, e) => s + e.monto, 0) * 100) / 100;
+      const cuotasTotal = base.cuotasTotal || 1;
+      const cuotaIndex = base.cuotaIndex || 1;
+      const mesInicio = shiftMonth(month, -(cuotaIndex - 1));
+      const descripcionBase = (base.descripcion || "")
+        .replace(/\s*\(cuota \d+\/\d+, hogar\)\s*$/, "")
+        .replace(/\s*\(hogar\)\s*$/, "")
+        .trim();
+      nuevosRegistros.push({
+        id,
+        descripcion: descripcionBase || "Consumo del hogar",
+        categoria: base.categoria,
+        montoTotal: Math.round(montoCuotaTotal * cuotasTotal * 100) / 100,
+        montoCuota: montoCuotaTotal,
+        cuotasTotal,
+        mesInicio,
+        mesesFallidos: [],
+      });
+    });
+    if (nuevosRegistros.length === 0) {
+      setErrorMsg("No se encontraron consumos de tarjeta del hogar para reparar este mes.");
+      return;
+    }
+    await saveTarjetasHogar([...nuevosRegistros, ...tarjetasHogar]);
+    setErrorMsg(`Reparado: se recuperaron ${nuevosRegistros.length} consumo(s) de tarjeta del hogar que faltaban en la lista.`);
+  }
+
   // Escribe (o reemplaza si ya existe, por id) una entrada puntual en el mes que corresponda.
   // Escribe (o reemplaza, por id) un lote de entradas en el mes que corresponda, en un solo guardado.
   // Importante: nunca separar esto en llamadas de a una entrada cuando el mes es el actual, porque cada
@@ -1339,7 +1385,8 @@ function LibroFamiliar() {
     onCargarTarjetaHogar: crearConsumoTarjetaHogar,
     onBorrarTarjetaHogar: borrarConsumoTarjetaHogar,
     onEditarTarjetaHogar: editarConsumoTarjetaHogar,
-    onRevisarTarjetaHogar: revisarCuotasTarjetaHogar
+    onRevisarTarjetaHogar: revisarCuotasTarjetaHogar,
+    onRepararTarjetaHogar: repararTarjetasHogar
   })), /*#__PURE__*/React.createElement("section", {
     className: "lf-familiar"
   }, /*#__PURE__*/React.createElement("div", {
@@ -1733,7 +1780,8 @@ function HogarSection({
   onCargarTarjetaHogar,
   onBorrarTarjetaHogar,
   onEditarTarjetaHogar,
-  onRevisarTarjetaHogar
+  onRevisarTarjetaHogar,
+  onRepararTarjetaHogar
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(list);
@@ -1918,7 +1966,8 @@ function HogarSection({
     onCargar: onCargarTarjetaHogar,
     onBorrar: onBorrarTarjetaHogar,
     onEditar: onEditarTarjetaHogar,
-    onRevisar: onRevisarTarjetaHogar
+    onRevisar: onRevisarTarjetaHogar,
+    onReparar: onRepararTarjetaHogar
   }));
 }
 function EtiquetasTarjetaPicker({
@@ -2017,7 +2066,8 @@ function TarjetasHogarSection({
   onCargar,
   onBorrar,
   onEditar,
-  onRevisar
+  onRevisar,
+  onReparar
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -2029,6 +2079,12 @@ function TarjetasHogarSection({
   });
   const [busy, setBusy] = useState(false);
   const [revisando, setRevisando] = useState(null);
+  const [reparando, setReparando] = useState(false);
+  async function reparar() {
+    setReparando(true);
+    await onReparar();
+    setReparando(false);
+  }
   const activas = list.filter(p => {
     const idx = monthDiff(p.mesInicio, month);
     return idx >= 0 && idx < p.cuotasTotal;
@@ -2078,14 +2134,27 @@ function TarjetasHogarSection({
     className: "lf-fijos-title"
   }, /*#__PURE__*/React.createElement(CreditCard, {
     size: 13
-  }), " Tarjetas del hogar"), /*#__PURE__*/React.createElement("button", {
+  }), " Tarjetas del hogar"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "6px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "lf-edit-btn lf-edit-btn-hogar",
+    onClick: reparar,
+    disabled: reparando,
+    title: "Recupera consumos del hogar que quedaron sin registrar en esta lista pero ya están cargados en los movimientos"
+  }, /*#__PURE__*/React.createElement(RefreshCw, {
+    size: 12,
+    className: reparando ? "lf-spin" : ""
+  }), " Reparar"), /*#__PURE__*/React.createElement("button", {
     className: "lf-edit-btn lf-edit-btn-hogar",
     onClick: () => showForm ? cancelar() : setShowForm(true)
   }, showForm ? /*#__PURE__*/React.createElement(Check, {
     size: 12
   }) : /*#__PURE__*/React.createElement(Plus, {
     size: 12
-  }), showForm ? "Cerrar" : "Nuevo consumo")), showForm && /*#__PURE__*/React.createElement("div", {
+  }), showForm ? "Cerrar" : "Nuevo consumo"))), showForm && /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjeta-form"
   }, editingId && /*#__PURE__*/React.createElement("p", {
     className: "lf-tarjeta-editing-tag"
