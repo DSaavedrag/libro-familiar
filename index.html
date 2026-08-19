@@ -3674,7 +3674,7 @@ function Style() {
         gap: 8px;
         margin-bottom: 12px;
       }
-      .lf-col-totals > div { display: flex; flex-direction: column; }
+      .lf-col-totals > div { display: flex; flex-direction: column; min-width: 0; }
       .lf-label {
         font-family: 'IBM Plex Mono', monospace;
         font-size: 10px;
@@ -3804,7 +3804,7 @@ function Style() {
         padding-bottom: 16px;
         border-bottom: 1px solid var(--paper-line);
       }
-      .lf-familiar-totals > div { display: flex; flex-direction: column; gap: 2px; }
+      .lf-familiar-totals > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
       .lf-familiar-totals .lf-num { font-size: 19px; }
 
       .lf-cat-bars { display: flex; flex-direction: column; gap: 10px; }
@@ -3948,13 +3948,25 @@ function Style() {
         .lf-fijos-list, .lf-tarjetas-list, .lf-col-list { grid-template-columns: repeat(2, 1fr); }
       }
       @media (max-width: 640px) {
-        .lf-root { padding: 20px 14px 28px; border-radius: 10px; }
+        .lf-root { padding: 20px 14px 28px; border-radius: 10px; overflow-x: hidden; }
         .lf-columns-solo { max-width: 100%; }
         .lf-seam { display: none; }
         .lf-familiar-totals { gap: 16px; flex-wrap: wrap; }
+        .lf-col-totals { flex-wrap: wrap; gap: 12px 16px; }
         .lf-bar-nums { width: auto; }
         .lf-cat-bar-row { flex-wrap: wrap; }
         .lf-fijos-list, .lf-tarjetas-list, .lf-col-list { grid-template-columns: 1fr; }
+
+        /* Que ningún monto se salga de su tarjeta: puede achicarse o pasar a la línea siguiente */
+        .lf-num, .lf-col-cat-num, .lf-col-cat-restante, .lf-entry-amt,
+        .lf-tarjeta-detalle-cat-total, .lf-tarjeta-item-sub, .lf-pendiente-tarjeta-row .lf-num {
+          white-space: normal;
+          overflow-wrap: break-word;
+          word-break: break-word;
+        }
+        .lf-col-cat-num-wrap { max-width: 100%; }
+        .lf-entry-right { min-width: 0; }
+        .lf-tarjeta-detalle-cat-total { text-align: right; }
 
         .lf-gate-btn { padding: 18px 26px; font-size: 17px; }
         .lf-switch { padding: 10px 16px; font-size: 13px; }
