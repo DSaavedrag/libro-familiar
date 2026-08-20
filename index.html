@@ -231,6 +231,8 @@ function LibroFamiliar() {
     yani: []
   });
   const [cotizacionDolar, setCotizacionDolar] = useState(0);
+  const [reservas, setReservas] = useState([]);
+  const [activeTab, setActiveTab] = useState("registro");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -402,6 +404,12 @@ function LibroFamiliar() {
       } catch {
         // sin cotización guardada ni disponible en vivo, queda en 0 hasta que la carguen a mano
       }
+      try {
+        const r = await window.storage.get(`reservas`, true);
+        setReservas(r ? JSON.parse(r.value) : []);
+      } catch {
+        setReservas([]);
+      }
     })();
   }, []);
   async function persistEntries(next) {
@@ -487,6 +495,11 @@ function LibroFamiliar() {
       };
     });
     if (changed) await persistEntries(nextEntries);
+  }
+  async function saveReservas(list) {
+    setReservas(list);
+    const res = await storageSetRetry(`reservas`, JSON.stringify(list), true);
+    if (!res) setErrorMsg("No se pudo guardar los ahorros. Probá de nuevo.");
   }
   async function guardarCotizacion(valor, fuente = "manual") {
     setCotizacionDolar(valor);
@@ -1168,7 +1181,17 @@ function LibroFamiliar() {
     },
     onClick: () => setActivePerson(activePerson === "diego" ? "yani" : "diego"),
     title: "Cambiar de usuario"
-  }, PERSONAS[activePerson].label)), /*#__PURE__*/React.createElement("nav", {
+  }, PERSONAS[activePerson].label)), /*#__PURE__*/React.createElement("div", {
+    className: "lf-tabbar"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "lf-tab-btn" + (activeTab === "registro" ? " on" : ""),
+    onClick: () => setActiveTab("registro")
+  }, "Registro"), /*#__PURE__*/React.createElement("button", {
+    className: "lf-tab-btn" + (activeTab === "ahorros" ? " on" : ""),
+    onClick: () => setActiveTab("ahorros")
+  }, /*#__PURE__*/React.createElement(PiggyBank, {
+    size: 14
+  }), " Ahorros")), activeTab === "registro" && /*#__PURE__*/React.createElement("nav", {
     className: "lf-monthnav"
   }, /*#__PURE__*/React.createElement("button", {
     onClick: () => setMonth(shiftMonth(month, -1)),
@@ -1186,11 +1209,11 @@ function LibroFamiliar() {
     title: `Reiniciar ${monthLabel(month)}`
   }, /*#__PURE__*/React.createElement(RotateCcw, {
     size: 13
-  }), " Reiniciar mes")), /*#__PURE__*/React.createElement(CotizacionWidget, {
+  }), " Reiniciar mes")), activeTab === "registro" && /*#__PURE__*/React.createElement(CotizacionWidget, {
     cotizacionDolar: cotizacionDolar,
     onGuardar: guardarCotizacion,
     onActualizarLive: actualizarCotizacionLive
-  }), confirmingReset && /*#__PURE__*/React.createElement("div", {
+  }), activeTab === "registro" && confirmingReset && /*#__PURE__*/React.createElement("div", {
     className: "lf-reset-confirm"
   }, /*#__PURE__*/React.createElement(AlertTriangle, {
     size: 16
@@ -1202,14 +1225,14 @@ function LibroFamiliar() {
   }, "Sí, reiniciar ", monthLabel(month)), /*#__PURE__*/React.createElement("button", {
     className: "lf-reset-confirm-no",
     onClick: () => setConfirmingReset(false)
-  }, "Cancelar"))), errorMsg && /*#__PURE__*/React.createElement("div", {
+  }, "Cancelar"))), activeTab === "registro" && errorMsg && /*#__PURE__*/React.createElement("div", {
     className: "lf-error"
-  }, errorMsg), month === "2026-08" && activePerson === "diego" && !entries.some(e => e.imported) && /*#__PURE__*/React.createElement("button", {
+  }, errorMsg), activeTab === "registro" && month === "2026-08" && activePerson === "diego" && !entries.some(e => e.imported) && /*#__PURE__*/React.createElement("button", {
     className: "lf-import-btn",
     onClick: importAgosto
   }, /*#__PURE__*/React.createElement(ArrowDownCircle, {
     size: 15
-  }), " Importar datos de agosto desde el Excel"), /*#__PURE__*/React.createElement("section", {
+  }), " Importar datos de agosto desde el Excel"), activeTab === "registro" && /*#__PURE__*/React.createElement("section", {
     className: "lf-form-card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lf-form-row"
@@ -1356,7 +1379,7 @@ function LibroFamiliar() {
     size: 16
   }), " Registrar"))), loading ? /*#__PURE__*/React.createElement("div", {
     className: "lf-loading"
-  }, "Cargando el mes…") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("section", {
+  }, "Cargando el mes…") : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === "registro" && /*#__PURE__*/React.createElement("section", {
     className: "lf-columns-solo"
   }, activePerson === "diego" ? /*#__PURE__*/React.createElement(PersonColumn, {
     person: "diego",
@@ -1396,7 +1419,7 @@ function LibroFamiliar() {
     onRevisarTarjeta: p => revisarCuotasTarjeta("yani", p),
     onPagarTarjeta: () => pagarTarjeta("yani"),
     cotizacionDolar: cotizacionDolar
-  })), /*#__PURE__*/React.createElement("section", {
+  })), activeTab === "registro" && /*#__PURE__*/React.createElement("section", {
     className: "lf-familiar"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lf-familiar-head"
@@ -1442,7 +1465,7 @@ function LibroFamiliar() {
     }, fmt(gastado), presu > 0 ? ` / ${fmt(presu)}` : ""));
   })), /*#__PURE__*/React.createElement("p", {
     className: "lf-pct-total"
-  }, "Se arma sumando lo que cada uno parametrizó en su columna.")), /*#__PURE__*/React.createElement(HogarSection, {
+  }, "Se arma sumando lo que cada uno parametrizó en su columna.")), activeTab === "registro" && /*#__PURE__*/React.createElement(HogarSection, {
     list: fijosHogar,
     split: splitHogar,
     entries: entries,
@@ -1458,7 +1481,324 @@ function LibroFamiliar() {
     onEditarTarjetaHogar: editarConsumoTarjetaHogar,
     onRevisarTarjetaHogar: revisarCuotasTarjetaHogar,
     onRepararTarjetaHogar: repararTarjetasHogar
-  })), /*#__PURE__*/React.createElement(Style, null));
+  })), activeTab === "ahorros" && /*#__PURE__*/React.createElement(AhorrosSection, {
+    reservas: reservas,
+    activePerson: activePerson,
+    onSaveReservas: saveReservas
+  }), /*#__PURE__*/React.createElement(Style, null));
+}
+function AhorrosSection({
+  reservas,
+  activePerson,
+  onSaveReservas
+}) {
+  const e = React.createElement;
+  const [creating, setCreating] = useState(false);
+  const [newNombre, setNewNombre] = useState("");
+  const [newScope, setNewScope] = useState(activePerson || "diego");
+  const [newMeta, setNewMeta] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [movMonto, setMovMonto] = useState("");
+  const [movNota, setMovNota] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [editingReserva, setEditingReserva] = useState(false);
+  const [editNombre, setEditNombre] = useState("");
+  const [editScope, setEditScope] = useState("diego");
+  const [editMeta, setEditMeta] = useState("");
+  function totalDe(r) {
+    return (r.movimientos || []).reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  }
+  function colorDe(scope) {
+    if (scope === "diego") return "var(--c-diego)";
+    if (scope === "yani") return "var(--c-yani)";
+    return "var(--c-ahorros)";
+  }
+  function labelScope(scope) {
+    if (scope === "compartida") return "Compartida";
+    return PERSONAS[scope] ? PERSONAS[scope].label : scope;
+  }
+  const reservasVisibles = reservas.filter(r => r.scope === activePerson || r.scope === "compartida");
+  const totalPersonal = reservas.filter(r => r.scope === activePerson).reduce((s, r) => s + totalDe(r), 0);
+  const totalCompartida = reservas.filter(r => r.scope === "compartida").reduce((s, r) => s + totalDe(r), 0);
+  const totalGeneral = totalPersonal + totalCompartida;
+  function crearReserva() {
+    const nombre = newNombre.trim();
+    if (!nombre) return;
+    const nueva = {
+      id: `res-${Date.now()}`,
+      nombre,
+      scope: newScope,
+      meta: newMeta ? Number(newMeta) || 0 : null,
+      movimientos: []
+    };
+    onSaveReservas([...reservas, nueva]);
+    setNewNombre("");
+    setNewMeta("");
+    setNewScope(activePerson || "diego");
+    setCreating(false);
+    setSelectedId(nueva.id);
+  }
+  function borrarReserva(id) {
+    onSaveReservas(reservas.filter(r => r.id !== id));
+    setConfirmDeleteId(null);
+    if (selectedId === id) setSelectedId(null);
+  }
+  function agregarMovimiento(reservaId) {
+    const monto = Number(movMonto);
+    if (!monto) return;
+    const nuevoMov = {
+      id: `mov-${Date.now()}`,
+      monto,
+      nota: movNota.trim(),
+      ts: Date.now()
+    };
+    const next = reservas.map(r => r.id === reservaId ? {
+      ...r,
+      movimientos: [nuevoMov, ...(r.movimientos || [])]
+    } : r);
+    onSaveReservas(next);
+    setMovMonto("");
+    setMovNota("");
+  }
+  function borrarMovimiento(reservaId, movId) {
+    const next = reservas.map(r => r.id === reservaId ? {
+      ...r,
+      movimientos: (r.movimientos || []).filter(m => m.id !== movId)
+    } : r);
+    onSaveReservas(next);
+  }
+  function iniciarEdicion(r) {
+    setEditNombre(r.nombre);
+    setEditScope(r.scope);
+    setEditMeta(r.meta ? String(r.meta) : "");
+    setEditingReserva(true);
+  }
+  function guardarEdicionReserva(reservaId) {
+    const nombre = editNombre.trim();
+    if (!nombre) return;
+    const next = reservas.map(r => r.id === reservaId ? {
+      ...r,
+      nombre,
+      scope: editScope,
+      meta: editMeta ? Number(editMeta) || 0 : null
+    } : r);
+    onSaveReservas(next);
+    setEditingReserva(false);
+  }
+  useEffect(() => {
+    setEditingReserva(false);
+    setMovMonto("");
+    setMovNota("");
+    setConfirmDeleteId(null);
+  }, [selectedId]);
+  const seleccionada = selectedId ? reservas.find(r => r.id === selectedId) : null;
+  return e("section", {
+    className: "lf-ahorros"
+  }, e("div", {
+    className: "lf-ahorros-head"
+  }, e("h2", null, "Ahorros")), e("div", {
+    className: "lf-ahorros-totals"
+  }, e("div", null, e("span", {
+    className: "lf-label"
+  }, "Tu ahorro personal"), e("span", {
+    className: "lf-num lf-pos"
+  }, fmt(totalPersonal))), e("div", null, e("span", {
+    className: "lf-label"
+  }, "Ahorro compartido"), e("span", {
+    className: "lf-num lf-pos"
+  }, fmt(totalCompartida))), e("div", null, e("span", {
+    className: "lf-label"
+  }, "Total"), e("span", {
+    className: "lf-num lf-pos"
+  }, fmt(totalGeneral)))), seleccionada ? e("div", {
+    className: "lf-reserva-detalle"
+  }, e("button", {
+    className: "lf-reserva-back",
+    onClick: () => setSelectedId(null)
+  }, "← Volver a mis ahorros"), editingReserva ? e("div", {
+    className: "lf-reserva-nueva-form"
+  }, e("input", {
+    type: "text",
+    placeholder: "Nombre",
+    value: editNombre,
+    onChange: ev => setEditNombre(ev.target.value)
+  }), e("div", {
+    className: "lf-scope-toggle"
+  }, e("button", {
+    className: editScope === "diego" ? "on" : "",
+    style: editScope === "diego" ? { background: "var(--c-diego)", color: "var(--paper)", borderColor: "var(--c-diego)" } : undefined,
+    onClick: () => setEditScope("diego")
+  }, "Diego"), e("button", {
+    className: editScope === "yani" ? "on" : "",
+    style: editScope === "yani" ? { background: "var(--c-yani)", color: "var(--paper)", borderColor: "var(--c-yani)" } : undefined,
+    onClick: () => setEditScope("yani")
+  }, "Yani"), e("button", {
+    className: editScope === "compartida" ? "on" : "",
+    style: editScope === "compartida" ? { background: "var(--c-ahorros)", color: "var(--paper)", borderColor: "var(--c-ahorros)" } : undefined,
+    onClick: () => setEditScope("compartida")
+  }, "Compartida")), e("input", {
+    type: "number",
+    placeholder: "Meta en $ (opcional)",
+    value: editMeta,
+    onChange: ev => setEditMeta(ev.target.value)
+  }), e("div", {
+    className: "lf-reserva-nueva-btns"
+  }, e("button", {
+    className: "lf-reset-confirm-yes",
+    onClick: () => guardarEdicionReserva(seleccionada.id),
+    disabled: !editNombre.trim()
+  }, "Guardar cambios"), e("button", {
+    className: "lf-reset-confirm-no",
+    onClick: () => setEditingReserva(false)
+  }, "Cancelar"))) : e("div", {
+    className: "lf-reserva-detalle-head"
+  }, e("h3", null, seleccionada.nombre), e("span", {
+    className: "lf-reserva-scope-badge",
+    style: {
+      color: colorDe(seleccionada.scope)
+    }
+  }, labelScope(seleccionada.scope)), e("button", {
+    className: "lf-mini-del",
+    style: { color: "var(--ink)", opacity: 0.6 },
+    onClick: () => iniciarEdicion(seleccionada),
+    title: "Editar reserva"
+  }, e(Pencil, {
+    size: 13
+  }))), editingReserva ? null : e("p", {
+    className: "lf-reserva-total"
+  }, fmt(totalDe(seleccionada)), seleccionada.meta ? ` / meta ${fmt(seleccionada.meta)}` : ""), editingReserva ? null : seleccionada.meta ? e("div", {
+    className: "lf-bar-track",
+    title: `${Math.round(Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}% de la meta`,
+    style: {
+      background: `linear-gradient(to right, ${colorDe(seleccionada.scope) === "var(--c-diego)" ? "#33566C" : colorDe(seleccionada.scope) === "var(--c-yani)" ? "#8C3F52" : "#4F7A5B"} ${Math.max(3, Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}%, rgba(35,48,59,0.08) ${Math.max(3, Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}%)`
+    }
+  }) : null, e("div", {
+    className: "lf-reserva-mov-form"
+  }, e("input", {
+    type: "number",
+    placeholder: "Monto (+ para sumar, - para sacar)",
+    value: movMonto,
+    onChange: ev => setMovMonto(ev.target.value)
+  }), e("input", {
+    type: "text",
+    placeholder: "Nota (opcional)",
+    value: movNota,
+    onChange: ev => setMovNota(ev.target.value)
+  }), e("button", {
+    onClick: () => agregarMovimiento(seleccionada.id),
+    disabled: !movMonto
+  }, e(Plus, {
+    size: 14
+  }), " Registrar")), e("div", {
+    className: "lf-reserva-mov-list"
+  }, (seleccionada.movimientos || []).length === 0 ? e("p", {
+    className: "lf-empty"
+  }, "Todavía no cargaste movimientos en esta reserva.") : (seleccionada.movimientos || []).map(m => e("div", {
+    className: "lf-reserva-mov-row",
+    key: m.id
+  }, e("span", {
+    className: "lf-num " + (m.monto >= 0 ? "lf-pos" : "lf-neg")
+  }, fmt(m.monto)), e("span", {
+    className: "lf-reserva-mov-nota"
+  }, m.nota || "—"), e("button", {
+    className: "lf-mini-del",
+    onClick: () => borrarMovimiento(seleccionada.id, m.id),
+    title: "Borrar movimiento"
+  }, e(Trash2, {
+    size: 12
+  }))))), e("div", {
+    className: "lf-reserva-detalle-footer"
+  }, confirmDeleteId === seleccionada.id ? e(React.Fragment, null, e("span", null, "¿Borrar esta reserva y todo su historial?"), e("button", {
+    className: "lf-reset-confirm-yes",
+    onClick: () => borrarReserva(seleccionada.id)
+  }, "Sí, borrar"), e("button", {
+    className: "lf-reset-confirm-no",
+    onClick: () => setConfirmDeleteId(null)
+  }, "Cancelar")) : e("button", {
+    className: "lf-reserva-del-btn",
+    onClick: () => setConfirmDeleteId(seleccionada.id)
+  }, e(Trash2, {
+    size: 13
+  }), " Borrar reserva"))) : e(React.Fragment, null, e("div", {
+    className: "lf-reservas-list"
+  }, reservasVisibles.map(r => {
+    const total = totalDe(r);
+    const pct = r.meta ? Math.max(3, Math.min(100, total / r.meta * 100)) : 0;
+    return e("button", {
+      key: r.id,
+      className: "lf-reserva-card",
+      onClick: () => setSelectedId(r.id),
+      style: {
+        "--accent": colorDe(r.scope)
+      }
+    }, e("div", {
+      className: "lf-reserva-card-head"
+    }, e(PiggyBank, {
+      size: 16,
+      style: {
+        color: colorDe(r.scope)
+      }
+    }), e("span", {
+      className: "lf-reserva-card-nombre"
+    }, r.nombre), e("span", {
+      className: "lf-reserva-scope-badge",
+      style: {
+        color: colorDe(r.scope)
+      }
+    }, labelScope(r.scope))), e("span", {
+      className: "lf-num lf-pos"
+    }, fmt(total)), r.meta ? e("div", {
+      className: "lf-col-mini-track",
+      title: `${Math.round(total / r.meta * 100)}% de la meta`,
+      style: {
+        background: `linear-gradient(to right, ${r.scope === "diego" ? "#33566C" : r.scope === "yani" ? "#8C3F52" : "#4F7A5B"} ${pct}%, rgba(237,230,214,0.15) ${pct}%)`
+      }
+    }) : null, r.meta ? e("span", {
+      className: "lf-reserva-meta-label"
+    }, "meta ", fmt(r.meta)) : null);
+  })), reservasVisibles.length === 0 && !creating ? e("p", {
+    className: "lf-empty"
+  }, "Todavía no creaste ninguna reserva de ahorro.") : null, creating ? e("div", {
+    className: "lf-reserva-nueva-form"
+  }, e("input", {
+    type: "text",
+    placeholder: "Nombre (ej: Vacaciones, Auto, Emergencia)",
+    value: newNombre,
+    onChange: ev => setNewNombre(ev.target.value)
+  }), e("div", {
+    className: "lf-scope-toggle"
+  }, e("button", {
+    className: newScope === "diego" ? "on" : "",
+    style: newScope === "diego" ? { background: "var(--c-diego)", color: "var(--paper)", borderColor: "var(--c-diego)" } : undefined,
+    onClick: () => setNewScope("diego")
+  }, "Diego"), e("button", {
+    className: newScope === "yani" ? "on" : "",
+    style: newScope === "yani" ? { background: "var(--c-yani)", color: "var(--paper)", borderColor: "var(--c-yani)" } : undefined,
+    onClick: () => setNewScope("yani")
+  }, "Yani"), e("button", {
+    className: newScope === "compartida" ? "on" : "",
+    style: newScope === "compartida" ? { background: "var(--c-ahorros)", color: "var(--paper)", borderColor: "var(--c-ahorros)" } : undefined,
+    onClick: () => setNewScope("compartida")
+  }, "Compartida")), e("input", {
+    type: "number",
+    placeholder: "Meta en $ (opcional)",
+    value: newMeta,
+    onChange: ev => setNewMeta(ev.target.value)
+  }), e("div", {
+    className: "lf-reserva-nueva-btns"
+  }, e("button", {
+    className: "lf-reset-confirm-yes",
+    onClick: crearReserva,
+    disabled: !newNombre.trim()
+  }, "Crear reserva"), e("button", {
+    className: "lf-reset-confirm-no",
+    onClick: () => setCreating(false)
+  }, "Cancelar"))) : e("button", {
+    className: "lf-reserva-add-btn",
+    onClick: () => setCreating(true)
+  }, e(Plus, {
+    size: 15
+  }), " Nueva reserva")));
 }
 function PersonColumn({
   person,
@@ -2770,6 +3110,217 @@ function Style() {
       }
       .lf-switch:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
+      .lf-tabbar {
+        display: flex;
+        gap: 8px;
+        margin: 4px 0 18px;
+      }
+      .lf-tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: 1.5px solid var(--paper-line);
+        background: transparent;
+        color: var(--ink);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 7px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .lf-tab-btn.on {
+        background: var(--ink);
+        color: var(--paper);
+        border-color: var(--ink);
+      }
+
+      .lf-ahorros { margin-top: 4px; }
+      .lf-ahorros-head h2 { margin: 0 0 14px; }
+      .lf-ahorros-totals {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px 28px;
+        margin-bottom: 20px;
+      }
+      .lf-ahorros-totals > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+      .lf-reservas-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        align-content: start;
+      }
+      @media (max-width: 900px) { .lf-reservas-list { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 640px) { .lf-reservas-list { grid-template-columns: 1fr; } }
+      .lf-reserva-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        text-align: left;
+        background: rgba(255,255,255,0.5);
+        border: 1.5px dashed var(--paper-line);
+        border-radius: 14px;
+        padding: 14px 16px;
+        cursor: pointer;
+        font-family: inherit;
+        min-width: 0;
+      }
+      .lf-reserva-card:hover { border-color: var(--accent); }
+      .lf-reserva-card-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .lf-reserva-card-nombre {
+        font-weight: 600;
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: break-word;
+      }
+      .lf-reserva-scope-badge {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .lf-reserva-meta-label { font-size: 12px; color: var(--ink); opacity: 0.65; }
+      .lf-reserva-add-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border: 1.5px dashed var(--paper-line);
+        background: transparent;
+        color: var(--ink);
+        border-radius: 14px;
+        padding: 14px 16px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .lf-reserva-nueva-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: rgba(255,255,255,0.5);
+        border: 1.5px dashed var(--paper-line);
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .lf-reserva-nueva-form input {
+        border: 1.5px solid var(--paper-line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-family: inherit;
+        font-size: 14px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      .lf-reserva-nueva-btns { display: flex; gap: 8px; }
+      .lf-reserva-detalle {
+        background: rgba(255,255,255,0.5);
+        border: 1.5px dashed var(--paper-line);
+        border-radius: 14px;
+        padding: 18px;
+      }
+      .lf-reserva-back {
+        border: none;
+        background: transparent;
+        color: var(--ink);
+        opacity: 0.7;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        padding: 0 0 12px;
+      }
+      .lf-reserva-detalle-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .lf-reserva-detalle-head h3 { margin: 0; }
+      .lf-reserva-total { font-size: 20px; font-weight: 700; margin: 6px 0 12px; }
+      .lf-reserva-mov-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 14px 0;
+      }
+      .lf-reserva-mov-form input {
+        border: 1.5px solid var(--paper-line);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-family: inherit;
+        font-size: 14px;
+        background: var(--paper);
+        color: var(--ink);
+        flex: 1;
+        min-width: 140px;
+      }
+      .lf-reserva-mov-form button {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        background: var(--ink);
+        color: var(--paper);
+        border-radius: 8px;
+        padding: 8px 14px;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 600;
+      }
+      .lf-reserva-mov-form button:disabled { opacity: 0.4; cursor: default; }
+      .lf-reserva-mov-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+      .lf-reserva-mov-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--paper-line);
+        min-width: 0;
+      }
+      .lf-reserva-mov-nota {
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: break-word;
+        opacity: 0.75;
+        font-size: 13px;
+      }
+      .lf-mini-del {
+        border: none;
+        background: transparent;
+        color: var(--neg);
+        cursor: pointer;
+        opacity: 0.6;
+      }
+      .lf-mini-del:hover { opacity: 1; }
+      .lf-reserva-detalle-footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .lf-reserva-del-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        background: transparent;
+        color: var(--neg);
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+      }
+
       .lf-monthnav {
         display: flex;
         align-items: center;
@@ -2894,6 +3445,23 @@ function Style() {
       }
       .lf-toggle button.on:first-child { background: rgba(165,67,58,0.12); color: var(--neg); }
       .lf-toggle button.on:last-child { background: rgba(79,122,91,0.14); color: var(--pos); }
+
+      .lf-scope-toggle {
+        display: flex;
+        border: 1px solid var(--paper-line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .lf-scope-toggle button {
+        flex: 1;
+        border: 1.5px solid transparent;
+        background: transparent;
+        padding: 9px 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--ink-soft);
+      }
 
       .lf-input {
         font-family: 'IBM Plex Sans', sans-serif;
@@ -3967,6 +4535,10 @@ function Style() {
         .lf-col-cat-num-wrap { max-width: 100%; }
         .lf-entry-right { min-width: 0; }
         .lf-tarjeta-detalle-cat-total { text-align: right; }
+
+        .lf-ahorros-totals { gap: 12px 16px; }
+        .lf-reserva-card-nombre, .lf-reserva-total { white-space: normal; overflow-wrap: break-word; word-break: break-word; }
+        .lf-reserva-mov-row { flex-wrap: wrap; }
 
         .lf-gate-btn { padding: 18px 26px; font-size: 17px; }
         .lf-switch { padding: 10px 16px; font-size: 13px; }
