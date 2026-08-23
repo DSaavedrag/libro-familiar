@@ -974,6 +974,26 @@
         padding: 2px 0 2px 18px;
         font-family: 'IBM Plex Mono', monospace;
       }
+      /* La etiqueta ("Sube", "Viajes"...) ahora es un botón desplegable: mismo
+         aspecto que el div de antes, pero clickeable para ver cada consumo
+         individual — así se puede chequear si ya se cargó tal cosa o no. */
+      .lf-tarjeta-detalle-item-wrap { margin-bottom: 2px; }
+      .lf-tarjeta-detalle-item-toggle {
+        width: 100%;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font: inherit;
+        border-radius: 4px;
+      }
+      .lf-tarjeta-detalle-item-toggle:hover { background: rgba(35,48,59,0.06); }
+      .lf-tarjeta-detalle-item-count { opacity: 0.7; }
+      .lf-tarjeta-detalle-item-list {
+        padding: 2px 0 4px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
 
       .lf-entry-pendiente { border: 1px dashed rgba(181,80,47,0.4); }
 
@@ -1250,6 +1270,20 @@
       .lf-col-mini-track { flex: 1 1 100%; width: 100%; overflow: hidden; }
       .lf-col-cat-label { color: var(--ink-soft); flex: 1; }
       .lf-col-cat-num { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+      /* Cada fila de categoría (Ahorros, Necesidades...) se puede tocar para
+         desplegar los movimientos uno por uno, igual que las etiquetas de
+         tarjeta de arriba — para no depender solo del total. */
+      .lf-col-cat-row-clickable { cursor: pointer; border-radius: 6px; }
+      .lf-col-cat-row-clickable:hover { background: rgba(35,48,59,0.04); }
+      .lf-col-cat-arrow { font-size: 9px; opacity: 0.6; margin-left: 2px; }
+      .lf-col-cat-mov-list {
+        flex: 1 1 100%;
+        width: 100%;
+        padding: 2px 0 6px 21px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
 
       .lf-col-list { max-height: 220px; overflow-y: auto; align-content: start; }
       .lf-empty { font-size: 12.5px; color: var(--ink-soft); font-style: italic; }
@@ -1452,6 +1486,18 @@
       .lf-col .lf-base-note strong { color: var(--paper); }
       .lf-col .lf-col-cats { border-top-color: rgba(237,230,214,0.2); border-bottom-color: rgba(237,230,214,0.2); }
       .lf-col .lf-col-cat-label { color: rgba(237,230,214,0.75); }
+      .lf-col .lf-col-cat-row-clickable:hover { background: rgba(237,230,214,0.08); }
+      .lf-col .lf-col-cat-arrow { color: rgba(237,230,214,0.6); }
+      .lf-col .lf-tarjeta-detalle-item-toggle:hover { background: rgba(237,230,214,0.1); }
+      /* RowEntry (.lf-entry) se usa acá también, en las listas desplegables de
+         categoría/etiqueta — igual que las demás piezas de arriba, necesita su
+         propio contraste para verse bien sobre el fondo oscuro. */
+      .lf-col .lf-entry { background: rgba(237,230,214,0.1); }
+      .lf-col .lf-entry-desc { color: var(--paper); }
+      .lf-col .lf-entry-cat { color: rgba(237,230,214,0.6); }
+      .lf-col .lf-entry-del { color: rgba(237,230,214,0.45); }
+      .lf-col .lf-entry-del:hover { color: var(--neg); background: rgba(237,230,214,0.12); }
+      .lf-col .lf-pagado-btn { border-color: rgba(237,230,214,0.3); color: rgba(237,230,214,0.75); }
       .lf-col .lf-col-mini-track { height: 8px; background: rgba(237,230,214,0.15); margin-top: 4px; margin-bottom: 3px; }
       .lf-col .lf-col-pct-amount { color: var(--accent-on-dark); }
       .lf-col .lf-col-pct-slider { background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(237,230,214,0.18) var(--fill, 0%)); }
