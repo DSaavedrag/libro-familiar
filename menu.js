@@ -4,21 +4,14 @@
 // y arma la navegación — cada pantalla grande (Mi cuenta, Ahorros, Hogar) vive
 // en su propio archivo y se la llama desde acá, como los .prg que colgaban de
 // un sdmenu.prg.
-//
-// La lógica de "Tarjetas" (armar y guardar cuotas, tanto personales como de
-// Hogar) vive aparte, en logica-tarjetas.js — acá solo quedan las funciones
-// que tocan el estado de la app (guardar en Firebase, actualizar la
-// pantalla, mostrar errores). Es el primer bloque de este tipo que se separó;
-// la idea es ir sacando, de a poco, más bloques de lógica de este archivo.
 import React, { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp } from "lucide-react";
-import { CATEGORIAS, PERSONAS, fmt, IMPORT_AGOSTO_2026, PCT_DEFAULT, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
+import { CATEGORIAS, PERSONAS, fmt, IMPORT_AGOSTO_2026, PCT_DEFAULT, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth, monthDiff } from "./constants.js";
 import { storageSetRetry, fetchCotizacionLive } from "./storage.js";
 import { Shell, EtiquetasTarjetaPicker, CotizacionWidget } from "./components.js";
 import { PersonColumn } from "./pantalla-mi-cuenta.js";
 import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
-import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
 
 export function LibroFamiliar() {
   const [month, setMonth] = useState(monthKey(new Date()));
@@ -357,6 +350,27 @@ export function LibroFamiliar() {
     });
     persistEntries([...nuevas, ...entries]);
   }
+  async function addEntryToOtherMonth(mKey, entry) {
+    let existing = [];
+    try {
+      const r = await window.storage.get(`entries:${mKey}`, true);
+      existing = r ? JSON.parse(r.value) : [];
+    } catch {
+      existing = [];
+    }
+    const res = await storageSetRetry(`entries:${mKey}`, JSON.stringify([entry, ...existing]), true);
+    return Boolean(res);
+  }
+  async function removeEntryFromOtherMonth(mKey, tarjetaId) {
+    try {
+      const r = await window.storage.get(`entries:${mKey}`, true);
+      const existing = r ? JSON.parse(r.value) : [];
+      const filtered = existing.filter(e => e.tarjetaId !== tarjetaId);
+      await storageSetRetry(`entries:${mKey}`, JSON.stringify(filtered), true);
+    } catch {
+      // si no hay nada guardado para ese mes, no hay nada que borrar
+    }
+  }
   async function saveTarjetasFor(personId, list) {
     setTarjetas(prev => ({
       ...prev,
@@ -373,6 +387,67 @@ export function LibroFamiliar() {
     const res = await storageSetRetry(`etiquetasTarjeta:${personId}`, JSON.stringify(list), true);
     if (!res) setErrorMsg("No se pudieron guardar las etiquetas. Probá de nuevo.");
   }
+  function buildCuotaEntry({
+    purchaseId,
+    personId,
+    categoria,
+    descripcion,
+    montoCuota,
+    cuotasNum,
+    idx
+  }) {
+    return {
+      id: `${purchaseId}-c${idx}`,
+      person: personId,
+      tipo: "gasto",
+      categoria,
+      monto: montoCuota,
+      descripcion: cuotasNum > 1 ? `${descripcion} (cuota ${idx + 1}/${cuotasNum})` : descripcion,
+      tarjetaId: purchaseId,
+      cuotaIndex: idx + 1,
+      cuotasTotal: cuotasNum,
+      ts: Date.now() - idx
+    };
+  }
+
+  // Escribe las cuotas de startMonth en adelante. Devuelve la lista de meses (YYYY-MM) que no se pudieron guardar.
+  async function writeInstallments(personId, {
+    descripcion,
+    categoria,
+    cuotasNum,
+    montoCuota,
+    startMonth,
+    purchaseId
+  }) {
+    const fallidos = [];
+    for (let i = 0; i < cuotasNum; i++) {
+      const mKey = shiftMonth(startMonth, i);
+      const entry = buildCuotaEntry({
+        purchaseId,
+        personId,
+        categoria,
+        descripcion,
+        montoCuota,
+        cuotasNum,
+        idx: i
+      });
+      const ok = mKey === month ? await persistEntries([entry, ...entries]) : await addEntryToOtherMonth(mKey, entry);
+      if (!ok) fallidos.push(mKey);
+      if (i < cuotasNum - 1) await new Promise(r => setTimeout(r, 150));
+    }
+    return fallidos;
+  }
+  async function removeInstallments(purchase) {
+    for (let i = 0; i < purchase.cuotasTotal; i++) {
+      const mKey = shiftMonth(purchase.mesInicio, i);
+      if (mKey === month) {
+        await persistEntries(entries.filter(e => e.tarjetaId !== purchase.id));
+      } else {
+        await removeEntryFromOtherMonth(mKey, purchase.id);
+      }
+      if (i < purchase.cuotasTotal - 1) await new Promise(r => setTimeout(r, 100));
+    }
+  }
   async function cargarConsumoTarjeta(personId, {
     descripcion,
     monto,
@@ -383,16 +458,13 @@ export function LibroFamiliar() {
     const montoTotal = Number(monto) || 0;
     const montoCuota = Math.round(montoTotal / cuotasNum * 100) / 100;
     const purchaseId = `tarjeta-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const mesesFallidos = await escribirCuotas({
-      purchaseId,
-      personId,
-      categoria,
+    const mesesFallidos = await writeInstallments(personId, {
       descripcion,
+      categoria,
       cuotasNum,
       montoCuota,
       startMonth: month,
-      writeEntriesForMonth,
-      hogar: false
+      purchaseId
     });
     const registro = {
       id: purchaseId,
@@ -410,25 +482,17 @@ export function LibroFamiliar() {
     }
   }
   async function editarConsumoTarjeta(personId, purchase, nuevosValores) {
-    await removeInstallments({
-      purchase,
-      month,
-      entries,
-      persistEntries
-    });
+    await removeInstallments(purchase);
     const cuotasNum = Math.max(1, Math.round(Number(nuevosValores.cuotas)) || 1);
     const montoTotal = Number(nuevosValores.monto) || 0;
     const montoCuota = Math.round(montoTotal / cuotasNum * 100) / 100;
-    const mesesFallidos = await escribirCuotas({
-      purchaseId: purchase.id,
-      personId,
-      categoria: nuevosValores.categoria,
+    const mesesFallidos = await writeInstallments(personId, {
       descripcion: nuevosValores.descripcion,
+      categoria: nuevosValores.categoria,
       cuotasNum,
       montoCuota,
       startMonth: purchase.mesInicio,
-      writeEntriesForMonth,
-      hogar: false
+      purchaseId: purchase.id
     });
     const registro = {
       id: purchase.id,
@@ -445,39 +509,66 @@ export function LibroFamiliar() {
       setErrorMsg(`"${nuevosValores.descripcion}": se guardaron ${cuotasNum - mesesFallidos.length} de ${cuotasNum} cuotas. Faltan ${mesesFallidos.map(monthLabel).join(", ")}.`);
     }
   }
+  async function reintentarCuotasFaltantes(personId, purchase) {
+    const pendientes = purchase.mesesFallidos || [];
+    if (pendientes.length === 0) return;
+    const nuevosFallidos = [];
+    for (const mKey of pendientes) {
+      const idx = monthDiff(purchase.mesInicio, mKey);
+      const entry = buildCuotaEntry({
+        purchaseId: purchase.id,
+        personId,
+        categoria: purchase.categoria,
+        descripcion: purchase.descripcion,
+        montoCuota: purchase.montoCuota,
+        cuotasNum: purchase.cuotasTotal,
+        idx
+      });
+      const ok = mKey === month ? await persistEntries([entry, ...entries]) : await addEntryToOtherMonth(mKey, entry);
+      if (!ok) nuevosFallidos.push(mKey);
+      await new Promise(r => setTimeout(r, 150));
+    }
+    await saveTarjetasFor(personId, (tarjetas[personId] || []).map(p => p.id === purchase.id ? {
+      ...p,
+      mesesFallidos: nuevosFallidos
+    } : p));
+  }
   async function borrarConsumoTarjeta(personId, purchase) {
-    await removeInstallments({
-      purchase,
-      month,
-      entries,
-      persistEntries
-    });
+    await removeInstallments(purchase);
     await saveTarjetasFor(personId, (tarjetas[personId] || []).filter(p => p.id !== purchase.id));
   }
+
+  // Chequea, mes por mes, si la cuota realmente está guardada en ese período (no solo en el registro).
+  async function detectarCuotasFaltantes(purchase) {
+    const faltantes = [];
+    for (let i = 0; i < purchase.cuotasTotal; i++) {
+      const mKey = shiftMonth(purchase.mesInicio, i);
+      let existing;
+      if (mKey === month) {
+        existing = entries;
+      } else {
+        try {
+          const r = await window.storage.get(`entries:${mKey}`, true);
+          existing = r ? JSON.parse(r.value) : [];
+        } catch {
+          existing = [];
+        }
+      }
+      if (!existing.some(e => e.tarjetaId === purchase.id && e.cuotaIndex === i + 1)) {
+        faltantes.push(mKey);
+      }
+    }
+    return faltantes;
+  }
   async function revisarCuotasTarjeta(personId, purchase) {
-    const faltantes = await detectarCuotasFaltantes({
-      purchase,
-      month,
-      entries,
-      hogar: false
-    });
+    const faltantes = await detectarCuotasFaltantes(purchase);
     const patched = {
       ...purchase,
       mesesFallidos: faltantes
     };
     await saveTarjetasFor(personId, (tarjetas[personId] || []).map(p => p.id === purchase.id ? patched : p));
     if (faltantes.length > 0) {
-      const nuevosFallidos = await reintentarCuotasFaltantes({
-        purchase: patched,
-        pendientes: faltantes,
-        writeEntriesForMonth,
-        hogar: false,
-        personId
-      });
-      await saveTarjetasFor(personId, (tarjetas[personId] || []).map(p => p.id === purchase.id ? {
-        ...p,
-        mesesFallidos: nuevosFallidos
-      } : p));
+      await reintentarCuotasFaltantes(personId, patched);
     }
   }
   async function saveTarjetasHogar(list) {
@@ -494,10 +585,35 @@ export function LibroFamiliar() {
   // por tener tarjetaId === hogarId, que es como los genera crearConsumoTarjetaHogar) cuyo id no
   // esté en la lista de registros, y lo reconstruye a partir de esos mismos movimientos.
   async function repararTarjetasHogar() {
-    const nuevosRegistros = calcularRegistrosTarjetaHogarAReparar({
-      entries,
-      tarjetasHogar,
-      month
+    const candidatos = entries.filter(e => e.tarjetaId && e.hogarId && e.tarjetaId === e.hogarId);
+    const porId = {};
+    candidatos.forEach(e => {
+      if (!porId[e.tarjetaId]) porId[e.tarjetaId] = [];
+      porId[e.tarjetaId].push(e);
+    });
+    const idsExistentes = new Set(tarjetasHogar.map(p => p.id));
+    const nuevosRegistros = [];
+    Object.entries(porId).forEach(([id, grupo]) => {
+      if (idsExistentes.has(id)) return;
+      const base = grupo[0];
+      const montoCuotaTotal = Math.round(grupo.reduce((s, e) => s + e.monto, 0) * 100) / 100;
+      const cuotasTotal = base.cuotasTotal || 1;
+      const cuotaIndex = base.cuotaIndex || 1;
+      const mesInicio = shiftMonth(month, -(cuotaIndex - 1));
+      const descripcionBase = (base.descripcion || "")
+        .replace(/\s*\(cuota \d+\/\d+, hogar\)\s*$/, "")
+        .replace(/\s*\(hogar\)\s*$/, "")
+        .trim();
+      nuevosRegistros.push({
+        id,
+        descripcion: descripcionBase || "Consumo del hogar",
+        categoria: base.categoria,
+        montoTotal: Math.round(montoCuotaTotal * cuotasTotal * 100) / 100,
+        montoCuota: montoCuotaTotal,
+        cuotasTotal,
+        mesInicio,
+        mesesFallidos: [],
+      });
     });
     if (nuevosRegistros.length === 0) {
       setErrorMsg("No se encontraron consumos de tarjeta del hogar para reparar este mes.");
@@ -526,6 +642,58 @@ export function LibroFamiliar() {
     const res = await storageSetRetry(`entries:${mKey}`, JSON.stringify([...newEntries, ...existing.filter(e => !ids.has(e.id))]), true);
     return Boolean(res);
   }
+  function buildCuotaEntryHogar({
+    purchaseId,
+    personId,
+    categoria,
+    descripcion,
+    montoCuota,
+    cuotasNum,
+    idx
+  }) {
+    return {
+      id: `${purchaseId}-c${idx}-${personId}`,
+      person: personId,
+      tipo: "gasto",
+      categoria,
+      monto: montoCuota,
+      descripcion: cuotasNum > 1 ? `${descripcion} (cuota ${idx + 1}/${cuotasNum}, hogar)` : `${descripcion} (hogar)`,
+      tarjetaId: purchaseId,
+      hogarId: purchaseId,
+      cuotaIndex: idx + 1,
+      cuotasTotal: cuotasNum,
+      ts: Date.now() - idx
+    };
+  }
+
+  // Igual que writeInstallments, pero por cada cuota escribe DOS entradas (Diego y Yani) según splitHogar,
+  // ambas juntas en un solo guardado por mes.
+  async function writeInstallmentsHogar({
+    descripcion,
+    categoria,
+    cuotasNum,
+    montoCuotaTotal,
+    startMonth,
+    purchaseId
+  }) {
+    const fallidos = [];
+    for (let i = 0; i < cuotasNum; i++) {
+      const mKey = shiftMonth(startMonth, i);
+      const pares = ["diego", "yani"].map(pid => buildCuotaEntryHogar({
+        purchaseId,
+        personId: pid,
+        categoria,
+        descripcion,
+        montoCuota: Math.round(montoCuotaTotal * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100,
+        cuotasNum,
+        idx: i
+      }));
+      const ok = await writeEntriesForMonth(mKey, pares);
+      if (!ok) fallidos.push(mKey);
+      if (i < cuotasNum - 1) await new Promise(r => setTimeout(r, 150));
+    }
+    return fallidos;
+  }
   async function crearConsumoTarjetaHogar({
     descripcion,
     monto,
@@ -536,16 +704,13 @@ export function LibroFamiliar() {
     const montoTotal = Number(monto) || 0;
     const montoCuotaTotal = Math.round(montoTotal / cuotasNum * 100) / 100;
     const purchaseId = `tarjetahogar-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const mesesFallidos = await escribirCuotas({
-      purchaseId,
-      categoria,
+    const mesesFallidos = await writeInstallmentsHogar({
       descripcion,
+      categoria,
       cuotasNum,
       montoCuotaTotal,
       startMonth: month,
-      writeEntriesForMonth,
-      hogar: true,
-      splitHogar
+      purchaseId
     });
     const registro = {
       id: purchaseId,
@@ -563,25 +728,17 @@ export function LibroFamiliar() {
     }
   }
   async function editarConsumoTarjetaHogar(purchase, nuevosValores) {
-    await removeInstallments({
-      purchase,
-      month,
-      entries,
-      persistEntries
-    }); // filtra por tarjetaId, saca las dos entradas (Diego y Yani) de cada mes
+    await removeInstallments(purchase); // filtra por tarjetaId, saca las dos entradas (Diego y Yani) de cada mes
     const cuotasNum = Math.max(1, Math.round(Number(nuevosValores.cuotas)) || 1);
     const montoTotal = Number(nuevosValores.monto) || 0;
     const montoCuotaTotal = Math.round(montoTotal / cuotasNum * 100) / 100;
-    const mesesFallidos = await escribirCuotas({
-      purchaseId: purchase.id,
-      categoria: nuevosValores.categoria,
+    const mesesFallidos = await writeInstallmentsHogar({
       descripcion: nuevosValores.descripcion,
+      categoria: nuevosValores.categoria,
       cuotasNum,
       montoCuotaTotal,
       startMonth: purchase.mesInicio,
-      writeEntriesForMonth,
-      hogar: true,
-      splitHogar
+      purchaseId: purchase.id
     });
     const registro = {
       id: purchase.id,
@@ -596,21 +753,32 @@ export function LibroFamiliar() {
     await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? registro : p));
   }
   async function borrarConsumoTarjetaHogar(purchase) {
-    await removeInstallments({
-      purchase,
-      month,
-      entries,
-      persistEntries
-    });
+    await removeInstallments(purchase);
     await saveTarjetasHogar(tarjetasHogar.filter(p => p.id !== purchase.id));
   }
+  async function detectarCuotasFaltantesHogar(purchase) {
+    const faltantes = [];
+    for (let i = 0; i < purchase.cuotasTotal; i++) {
+      const mKey = shiftMonth(purchase.mesInicio, i);
+      let existing;
+      if (mKey === month) {
+        existing = entries;
+      } else {
+        try {
+          const r = await window.storage.get(`entries:${mKey}`, true);
+          existing = r ? JSON.parse(r.value) : [];
+        } catch {
+          existing = [];
+        }
+      }
+      const tieneDiego = existing.some(e => e.tarjetaId === purchase.id && e.cuotaIndex === i + 1 && e.person === "diego");
+      const tieneYani = existing.some(e => e.tarjetaId === purchase.id && e.cuotaIndex === i + 1 && e.person === "yani");
+      if (!tieneDiego || !tieneYani) faltantes.push(mKey);
+    }
+    return faltantes;
+  }
   async function revisarCuotasTarjetaHogar(purchase) {
-    const faltantes = await detectarCuotasFaltantes({
-      purchase,
-      month,
-      entries,
-      hogar: true
-    });
+    const faltantes = await detectarCuotasFaltantesHogar(purchase);
     if (faltantes.length === 0) {
       await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? {
         ...p,
@@ -618,13 +786,22 @@ export function LibroFamiliar() {
       } : p));
       return;
     }
-    const nuevosFallidos = await reintentarCuotasFaltantes({
-      purchase,
-      pendientes: faltantes,
-      writeEntriesForMonth,
-      hogar: true,
-      splitHogar
-    });
+    const nuevosFallidos = [];
+    for (const mKey of faltantes) {
+      const idx = monthDiff(purchase.mesInicio, mKey);
+      const pares = ["diego", "yani"].map(pid => buildCuotaEntryHogar({
+        purchaseId: purchase.id,
+        personId: pid,
+        categoria: purchase.categoria,
+        descripcion: purchase.descripcion,
+        montoCuota: Math.round(purchase.montoCuota * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100,
+        cuotasNum: purchase.cuotasTotal,
+        idx
+      }));
+      const ok = await writeEntriesForMonth(mKey, pares);
+      if (!ok) nuevosFallidos.push(mKey);
+      await new Promise(r => setTimeout(r, 150));
+    }
     await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? {
       ...p,
       mesesFallidos: nuevosFallidos
