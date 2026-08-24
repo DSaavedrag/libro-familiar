@@ -48,37 +48,6 @@ export const fmt = n => {
   const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${neg ? "-" : ""}$ ${withThousands},${decPart}`;
 };
-export const IMPORT_AGOSTO_2026 = [{
-  person: "diego",
-  tipo: "ingreso",
-  categoria: null,
-  monto: 3029864,
-  descripcion: "Sueldo (importado de Excel)"
-}, {
-  person: "diego",
-  tipo: "gasto",
-  categoria: "ahorros",
-  monto: 606442.8,
-  descripcion: "Ahorros de agosto (importado)"
-}, {
-  person: "diego",
-  tipo: "gasto",
-  categoria: "necesidades",
-  monto: 1114093.25,
-  descripcion: "Necesidades de agosto (importado)"
-}, {
-  person: "diego",
-  tipo: "gasto",
-  categoria: "liah",
-  monto: 451727.86,
-  descripcion: "Liah de agosto (importado)"
-}, {
-  person: "diego",
-  tipo: "gasto",
-  categoria: "placeres",
-  monto: 509580.92,
-  descripcion: "Placeres de agosto (importado)"
-}];
 export const PCT_DEFAULT = {
   ahorros: 20,
   necesidades: 45,

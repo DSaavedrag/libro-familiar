@@ -28,7 +28,8 @@ export function PersonColumn({
   onEditarTarjeta,
   onRevisarTarjeta,
   onPagarTarjeta,
-  cotizacionDolar
+  cotizacionDolar,
+  readOnly
 }) {
   const p = PERSONAS[person];
   const [editing, setEditing] = useState(false);
@@ -99,6 +100,8 @@ export function PersonColumn({
     };
   }).filter(Boolean);
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "lf-swipe-page"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "lf-col",
     style: {
       "--accent": `var(${p.cssVar})`
@@ -107,7 +110,9 @@ export function PersonColumn({
     className: "lf-col-head"
   }, /*#__PURE__*/React.createElement("h3", {
     className: "lf-col-title"
-  }, p.label), /*#__PURE__*/React.createElement("button", {
+  }, p.label, readOnly && /*#__PURE__*/React.createElement("span", {
+    className: "lf-readonly-badge"
+  }, "solo lectura")), !readOnly && /*#__PURE__*/React.createElement("button", {
     className: "lf-edit-btn lf-edit-btn-col",
     onClick: editing ? save : startEditing
   }, editing ? /*#__PURE__*/React.createElement(Check, {
@@ -136,7 +141,7 @@ export function PersonColumn({
     className: "lf-pendiente-tarjeta-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "lf-num lf-neg"
-  }, fmt(data.pendienteTarjeta)), /*#__PURE__*/React.createElement("button", {
+  }, fmt(data.pendienteTarjeta)), !readOnly && /*#__PURE__*/React.createElement("button", {
     className: "lf-pagar-tarjeta-btn",
     onClick: onPagarTarjeta
   }, "Pagar tarjeta"))), totalTarjetaMes > 0 && /*#__PURE__*/React.createElement("div", {
@@ -192,7 +197,8 @@ export function PersonColumn({
       key: e.id,
       entry: e,
       onTogglePagado: onTogglePagado,
-      onRemove: onRemoveEntry
+      onRemove: onRemoveEntry,
+      readOnly: readOnly
     }))));
   }))))), editing && /*#__PURE__*/React.createElement("p", {
     className: "lf-base-note"
@@ -276,7 +282,8 @@ export function PersonColumn({
       key: e.id,
       entry: e,
       onTogglePagado: onTogglePagado,
-      onRemove: onRemoveEntry
+      onRemove: onRemoveEntry,
+      readOnly: readOnly
     }))));
   }), editing && /*#__PURE__*/React.createElement("p", {
     className: "lf-pct-total lf-pct-total-col" + (pctTotal !== 100 ? " lf-pct-warn" : "")
@@ -288,16 +295,26 @@ export function PersonColumn({
     pendientes: pendientesFijos,
     onSave: onSaveFijos,
     onCargar: onCargarFijos,
-    cotizacionDolar: cotizacionDolar
-  }), /*#__PURE__*/React.createElement(TarjetasSection, {
+    cotizacionDolar: cotizacionDolar,
+    readOnly: readOnly
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "lf-swipe-page"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lf-col-outer-light"
+  }, /*#__PURE__*/React.createElement(TarjetasSection, {
     accentVar: p.cssVar,
     list: tarjetas || [],
     month: month,
     onCargar: onCargarTarjeta,
     onBorrar: onBorrarTarjeta,
     onEditar: onEditarTarjeta,
-    onRevisar: onRevisarTarjeta
-  }), /*#__PURE__*/React.createElement("h4", {
+    onRevisar: onRevisarTarjeta,
+    readOnly: readOnly
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "lf-swipe-page"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lf-col-outer-light"
+  }, /*#__PURE__*/React.createElement("h4", {
     className: "lf-movs-title"
   }, "Movimientos"), /*#__PURE__*/React.createElement("div", {
     className: "lf-col-list"
@@ -307,6 +324,7 @@ export function PersonColumn({
     key: e.id,
     entry: e,
     onTogglePagado: onTogglePagado,
-    onRemove: onRemoveEntry
-  })))));
+    onRemove: onRemoveEntry,
+    readOnly: readOnly
+  }))))));
 }

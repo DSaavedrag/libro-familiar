@@ -66,6 +66,34 @@
       }
       .lf-switch:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
+      .lf-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .lf-logout-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: 1.5px solid var(--ink-soft);
+        color: var(--ink-soft);
+        background: transparent;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .lf-logout-btn:hover { background: rgba(165,67,58,0.1); color: var(--neg); border-color: var(--neg); }
+
+      .lf-viewing-other-note {
+        font-size: 13px;
+        color: var(--ink-soft);
+        background: color-mix(in srgb, var(--ink-soft) 8%, transparent);
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-bottom: 14px;
+      }
+
       .lf-tabbar {
         display: flex;
         gap: 8px;
@@ -528,10 +556,19 @@
         word-break: break-all;
       }
 
-      .lf-columns-solo {
+      /* Contenedor de las 4 "pantallas" (Resumen+Fijos / Tarjetas / Movimientos / Grupo).
+         En escritorio son 4 bloques apilados, como estaba antes — acá no cambia nada.
+         Se convierten en pantallas deslizables recién en celular (ver @media más abajo). */
+      .lf-swipe-container {
         display: block;
         width: 100%;
         margin-bottom: 20px;
+      }
+      .lf-swipe-page {
+        margin-bottom: 20px;
+      }
+      .lf-swipe-page:last-child {
+        margin-bottom: 0;
       }
       .lf-hogar {
         background: rgba(255,255,255,0.5);
@@ -644,6 +681,20 @@
         font-weight: 700;
         color: var(--accent);
         margin: 0;
+      }
+      .lf-readonly-badge {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-family: system-ui, sans-serif;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        vertical-align: middle;
       }
       .lf-edit-btn.lf-edit-btn-col {
         border-color: var(--accent);
@@ -1348,6 +1399,17 @@
         display: flex;
       }
       .lf-entry-del:hover { opacity: 1; color: var(--neg); background: rgba(165,67,58,0.1); }
+      .lf-entry-del-confirm-yes, .lf-entry-del-confirm-no {
+        border: none;
+        cursor: pointer;
+        padding: 3px;
+        border-radius: 4px;
+        display: flex;
+      }
+      .lf-entry-del-confirm-yes { background: var(--neg); color: #fff; }
+      .lf-entry-del-confirm-yes:hover { opacity: 0.85; }
+      .lf-entry-del-confirm-no { background: transparent; border: 1px solid var(--paper-line); color: var(--ink-soft); }
+      .lf-entry-del-confirm-no:hover { background: rgba(255,255,255,0.5); }
       .lf-pagado-btn {
         display: flex;
         align-items: center;
@@ -1477,24 +1539,6 @@
 
       .lf-loading { text-align: center; padding: 40px 0; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
 
-      .lf-import-btn {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        width: 100%;
-        justify-content: center;
-        background: rgba(51,86,108,0.1);
-        border: 1.5px dashed var(--diego);
-        color: var(--diego);
-        border-radius: 10px;
-        padding: 11px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        margin-bottom: 16px;
-      }
-      .lf-import-btn:hover { background: rgba(51,86,108,0.18); }
-
       /* Mi cuenta: tema oscuro (mismo look que antes tenía Vista grupal), a ancho completo.
          Todo lo de acá abajo son overrides SOLO para dentro de .lf-col — el resto de la app
          (Hogar, Vista grupal, formulario) sigue con la paleta clara de siempre. */
@@ -1525,6 +1569,8 @@
       .lf-col .lf-entry-cat { color: rgba(237,230,214,0.6); }
       .lf-col .lf-entry-del { color: rgba(237,230,214,0.45); }
       .lf-col .lf-entry-del:hover { color: var(--neg); background: rgba(237,230,214,0.12); }
+      .lf-col .lf-entry-del-confirm-no { border-color: rgba(237,230,214,0.3); color: rgba(237,230,214,0.75); }
+      .lf-col .lf-entry-del-confirm-no:hover { background: rgba(237,230,214,0.12); }
       .lf-col .lf-pagado-btn { border-color: rgba(237,230,214,0.3); color: rgba(237,230,214,0.75); }
       .lf-col .lf-col-mini-track { height: 8px; background: rgba(237,230,214,0.15); margin-top: 4px; margin-bottom: 3px; }
       .lf-col .lf-col-pct-amount { color: var(--accent-on-dark); }
@@ -1566,7 +1612,39 @@
       }
       @media (max-width: 640px) {
         .lf-root { padding: 20px 14px 28px; border-radius: 10px; overflow-x: hidden; }
-        .lf-columns-solo { max-width: 100%; }
+
+        /* En celular, en vez de las 4 pantallas (Resumen+Fijos / Tarjetas / Movimientos /
+           Grupo) apiladas una abajo de la otra, se deslizan de costado con el dedo — como
+           una galería de fotos, sin botones ni indicador (pedido explícito de Diego). Cada
+           una ocupa el ancho completo y "engancha" al soltar (scroll-snap del navegador,
+           no hace falta JS). En escritorio nada de esto se activa: quedan las 4 apiladas,
+           como siempre (ver reglas de .lf-swipe-container/.lf-swipe-page fuera de este @media). */
+        .lf-swipe-container {
+          display: flex;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          scroll-behavior: smooth;
+          margin: 0 0 10px;
+          scrollbar-width: none;
+          /* Con el dedo esto no se nota (el touch ya scrollea solo). Es para
+             cuando se arrastra con mouse — típicamente probando en "modo
+             celular" del inspector del navegador — ver el pointerdown/move/up
+             en menu.js: sin esto, arrastrar seleccionaba el texto de la
+             pantalla en vez de deslizarla. */
+          cursor: grab;
+          user-select: none;
+          -webkit-user-select: none;
+        }
+        .lf-swipe-container:active { cursor: grabbing; }
+        .lf-swipe-container::-webkit-scrollbar { display: none; }
+        .lf-swipe-page {
+          flex: 0 0 100%;
+          width: 100%;
+          min-width: 0;
+          scroll-snap-align: start;
+          margin-bottom: 0;
+        }
         .lf-pct-ticks { display: none; } /* no entran cómodas en celular, pedido explícito de Diego */
         .lf-seam { display: none; }
         .lf-familiar-totals { gap: 16px; flex-wrap: wrap; }
@@ -1574,6 +1652,13 @@
         .lf-bar-nums { width: auto; }
         .lf-cat-bar-row { flex-wrap: wrap; }
         .lf-fijos-list, .lf-tarjetas-list, .lf-col-list { grid-template-columns: 1fr; }
+
+        /* Movimientos ahora vive solo en su propia pantalla (ver .lf-swipe-page
+           más arriba) — ya no comparte espacio con Fijos y Tarjetas, así que en
+           vez de la cajita chica de siempre (220px, pensada para cuando estaba
+           apretada entre otras dos secciones) usa la mayor parte de la pantalla
+           disponible. Pedido explícito de Diego: "ahora tiene más espacio". */
+        .lf-col-list { max-height: 68vh; }
 
         /* Que ningún monto se salga de su tarjeta: puede achicarse o pasar a la línea siguiente */
         .lf-num, .lf-col-cat-num, .lf-col-cat-restante, .lf-entry-amt,

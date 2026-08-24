@@ -10,9 +10,9 @@
 // que tocan el estado de la app (guardar en Firebase, actualizar la
 // pantalla, mostrar errores). Es el primer bloque de este tipo que se separó;
 // la idea es ir sacando, de a poco, más bloques de lógica de este archivo.
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp, LogOut } from "lucide-react";
-import { CATEGORIAS, PERSONAS, fmt, IMPORT_AGOSTO_2026, PCT_DEFAULT, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
+import { CATEGORIAS, PERSONAS, fmt, PCT_DEFAULT, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
 import { storageSetRetry, fetchCotizacionLive, arrayAMapaPorId, mapaAArray } from "./storage.js";
 import { Shell, EtiquetasTarjetaPicker, CotizacionWidget } from "./components.js";
 import { PersonColumn } from "./pantalla-mi-cuenta.js";
@@ -40,6 +40,59 @@ export function LibroFamiliar() {
   const [personKeysLibres, setPersonKeysLibres] = useState(null);
   const [vinculando, setVinculando] = useState(false);
   const activePerson = jugadorActual ? jugadorActual.personKey : null;
+
+  // `viewingPerson` es qué libro estás mirando en pantalla — arranca siendo el
+  // tuyo (activePerson), pero se puede cambiar tocando tu nombre para ver el
+  // libro del otro (de solo lectura: las reglas de Firebase ya bloquean que
+  // edites lo ajeno, y la pantalla también oculta los botones de edición
+  // cuando estás mirando un libro que no es el tuyo).
+  const [viewingPersonRaw, setViewingPerson] = useState(null);
+  useEffect(() => {
+    if (activePerson) setViewingPerson(activePerson);
+  }, [activePerson]);
+  // Mientras el useEffect de arriba todavía no corrió (el primer render justo
+  // después de loguearte), viewingPersonRaw sigue en null — este fallback evita
+  // que ese render intermedio explote leyendo PERSONAS[null].
+  const viewingPerson = viewingPersonRaw || activePerson;
+
+  // Pantallas deslizables (en vez de todo apilado hacia abajo): Resumen+Fijos /
+  // Tarjetas / Movimientos (estas tres las arma PersonColumn) y Grupo (Vista
+  // grupal + Hogar, acá abajo). Con el dedo (celular de verdad) el scroll con
+  // snap es 100% nativo del navegador, no hace falta nada de JS acá. Pero con
+  // mouse — como al probar en "modo celular" del inspector de Chrome, que
+  // simula la pantalla pero no manda eventos de touch reales — un div con
+  // overflow-x no se mueve solo al arrastrar con el click, hay que manejarlo
+  // a mano. Por eso este pointerdown/move/up: solo actúa cuando el puntero es
+  // mouse (pointerType !== "touch"), así no interfiere en nada con el gesto
+  // táctil real en un celular. En desktop esto no se nota: las 4 pantallas
+  // quedan apiladas como siempre (ver @media en styles.css) y este handler ni
+  // se activa porque no hay overflow-x que arrastrar.
+  const swipeRef = useRef(null);
+  const swipeDrag = useRef({
+    arrastrando: false,
+    xInicial: 0,
+    scrollInicial: 0
+  });
+  function handleSwipePointerDown(e) {
+    if (e.pointerType === "touch") return;
+    const el = swipeRef.current;
+    if (!el) return;
+    swipeDrag.current = {
+      arrastrando: true,
+      xInicial: e.clientX,
+      scrollInicial: el.scrollLeft
+    };
+    el.setPointerCapture(e.pointerId);
+  }
+  function handleSwipePointerMove(e) {
+    if (!swipeDrag.current.arrastrando) return;
+    const el = swipeRef.current;
+    if (!el) return;
+    el.scrollLeft = swipeDrag.current.scrollInicial - (e.clientX - swipeDrag.current.xInicial);
+  }
+  function handleSwipePointerUp() {
+    swipeDrag.current.arrastrando = false;
+  }
   useEffect(() => {
     const unsub = suscribirseASesion(user => {
       setSesion(user);
@@ -795,18 +848,6 @@ export function LibroFamiliar() {
       descripcion: ""
     });
   }
-  function importAgosto() {
-    const already = entries.some(e => e.imported);
-    if (already) return;
-    const now = Date.now();
-    const nuevas = IMPORT_AGOSTO_2026.map((e, i) => ({
-      id: `import-${now}-${i}`,
-      ts: now - i,
-      imported: true,
-      ...e
-    }));
-    persistEntries([...nuevas, ...entries]);
-  }
   function removeEntry(id) {
     persistEntries(entries.filter(e => e.id !== id));
   }
@@ -995,19 +1036,23 @@ export function LibroFamiliar() {
     className: "lf-eyebrow"
   }, "Libro Familiar"), /*#__PURE__*/React.createElement("h1", {
     className: "lf-h1"
-  }, "Cuenta compartida")), /*#__PURE__*/React.createElement("button", {
+  }, "Cuenta compartida")), /*#__PURE__*/React.createElement("div", {
+    className: "lf-header-actions"
+  }, /*#__PURE__*/React.createElement("button", {
     className: "lf-switch",
     style: {
-      "--accent": `var(${PERSONAS[activePerson].cssVar})`
+      "--accent": `var(${PERSONAS[viewingPerson].cssVar})`
     },
+    onClick: () => setViewingPerson(viewingPerson === "diego" ? "yani" : "diego"),
+    title: viewingPerson === activePerson ? "Ver el libro del otro" : "Volver a tu libro"
+  }, PERSONAS[viewingPerson].label, viewingPerson !== activePerson && " (solo lectura)"), /*#__PURE__*/React.createElement("button", {
+    className: "lf-logout-btn",
     onClick: handleCerrarSesion,
-    title: "Cerrar sesión"
-  }, PERSONAS[activePerson].label, /*#__PURE__*/React.createElement(LogOut, {
-    size: 13,
-    style: {
-      marginLeft: 6
-    }
-  }))), /*#__PURE__*/React.createElement("div", {
+    title: "Cerrar sesión",
+    "aria-label": "Cerrar sesión"
+  }, /*#__PURE__*/React.createElement(LogOut, {
+    size: 15
+  })))), /*#__PURE__*/React.createElement("div", {
     className: "lf-tabbar"
   }, /*#__PURE__*/React.createElement("button", {
     className: "lf-tab-btn" + (activeTab === "registro" ? " on" : ""),
@@ -1053,12 +1098,9 @@ export function LibroFamiliar() {
     onClick: () => setConfirmingReset(false)
   }, "Cancelar"))), activeTab === "registro" && errorMsg && /*#__PURE__*/React.createElement("div", {
     className: "lf-error"
-  }, errorMsg), activeTab === "registro" && month === "2026-08" && activePerson === "diego" && !entries.some(e => e.imported) && /*#__PURE__*/React.createElement("button", {
-    className: "lf-import-btn",
-    onClick: importAgosto
-  }, /*#__PURE__*/React.createElement(ArrowDownCircle, {
-    size: 15
-  }), " Importar datos de agosto desde el Excel"), activeTab === "registro" && /*#__PURE__*/React.createElement("section", {
+  }, errorMsg), activeTab === "registro" && viewingPerson !== activePerson && /*#__PURE__*/React.createElement("div", {
+    className: "lf-viewing-other-note"
+  }, "Estás viendo el libro de ", PERSONAS[viewingPerson].label, " — no podés cargar movimientos acá. Volvé a tu libro para agregar los tuyos."), activeTab === "registro" && viewingPerson === activePerson && /*#__PURE__*/React.createElement("section", {
     className: "lf-form-card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lf-form-row"
@@ -1205,9 +1247,15 @@ export function LibroFamiliar() {
     size: 16
   }), " Registrar"))), loading ? /*#__PURE__*/React.createElement("div", {
     className: "lf-loading"
-  }, "Cargando el mes…") : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === "registro" && /*#__PURE__*/React.createElement("section", {
-    className: "lf-columns-solo"
-  }, activePerson === "diego" ? /*#__PURE__*/React.createElement(PersonColumn, {
+  }, "Cargando el mes…") : /*#__PURE__*/React.createElement(React.Fragment, null, activeTab === "registro" && /*#__PURE__*/React.createElement("div", {
+    className: "lf-swipe-container",
+    ref: swipeRef,
+    onPointerDown: handleSwipePointerDown,
+    onPointerMove: handleSwipePointerMove,
+    onPointerUp: handleSwipePointerUp,
+    onPointerLeave: handleSwipePointerUp,
+    onPointerCancel: handleSwipePointerUp
+  }, viewingPerson === "diego" ? /*#__PURE__*/React.createElement(PersonColumn, {
     person: "diego",
     data: diego,
     settings: settings.diego,
@@ -1225,7 +1273,8 @@ export function LibroFamiliar() {
     onEditarTarjeta: (p, datos) => editarConsumoTarjeta("diego", p, datos),
     onRevisarTarjeta: p => revisarCuotasTarjeta("diego", p),
     onPagarTarjeta: () => pagarTarjeta("diego"),
-    cotizacionDolar: cotizacionDolar
+    cotizacionDolar: cotizacionDolar,
+    readOnly: activePerson !== "diego"
   }) : /*#__PURE__*/React.createElement(PersonColumn, {
     person: "yani",
     data: yani,
@@ -1244,8 +1293,11 @@ export function LibroFamiliar() {
     onEditarTarjeta: (p, datos) => editarConsumoTarjeta("yani", p, datos),
     onRevisarTarjeta: p => revisarCuotasTarjeta("yani", p),
     onPagarTarjeta: () => pagarTarjeta("yani"),
-    cotizacionDolar: cotizacionDolar
-  })), activeTab === "registro" && /*#__PURE__*/React.createElement("section", {
+    cotizacionDolar: cotizacionDolar,
+    readOnly: activePerson !== "yani"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "lf-swipe-page"
+  }, /*#__PURE__*/React.createElement("section", {
     className: "lf-familiar"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lf-familiar-head"
@@ -1307,9 +1359,9 @@ export function LibroFamiliar() {
     onEditarTarjetaHogar: editarConsumoTarjetaHogar,
     onRevisarTarjetaHogar: revisarCuotasTarjetaHogar,
     onRepararTarjetaHogar: repararTarjetasHogar
-  })), activeTab === "ahorros" && /*#__PURE__*/React.createElement(AhorrosSection, {
+  }))), activeTab === "ahorros" && /*#__PURE__*/React.createElement(AhorrosSection, {
     reservas: reservas,
     activePerson: activePerson,
     onSaveReservas: saveReservas
-  }));
+  })));
 }

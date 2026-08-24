@@ -2,7 +2,7 @@
 // pantallas (pantalla-mi-cuenta.js, pantalla-ahorros.js, pantalla-hogar.js)
 // pero que no tienen estado "de la app" propio.
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Pencil, Check, CreditCard, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, CreditCard, RefreshCw, X } from "lucide-react";
 import { CATEGORIAS, fmt, monthLabel, monthDiff, shiftMonth } from "./constants.js";
 
 export function budgetsFrom(pct, ingresos) {
@@ -430,7 +430,8 @@ export function TarjetasSection({
   onCargar,
   onBorrar,
   onEditar,
-  onRevisar
+  onRevisar,
+  readOnly
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -494,14 +495,14 @@ export function TarjetasSection({
     className: "lf-fijos-title"
   }, /*#__PURE__*/React.createElement(CreditCard, {
     size: 13
-  }), " Tarjetas"), /*#__PURE__*/React.createElement("button", {
+  }), " Tarjetas"), !readOnly && /*#__PURE__*/React.createElement("button", {
     className: "lf-edit-btn lf-edit-btn-col",
     onClick: () => showForm ? cancelar() : setShowForm(true)
   }, showForm ? /*#__PURE__*/React.createElement(Check, {
     size: 12
   }) : /*#__PURE__*/React.createElement(Plus, {
     size: 12
-  }), showForm ? "Cerrar" : "Nuevo consumo")), showForm && /*#__PURE__*/React.createElement("div", {
+  }), showForm ? "Cerrar" : "Nuevo consumo")), showForm && !readOnly && /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjeta-form"
   }, editingId && /*#__PURE__*/React.createElement("p", {
     className: "lf-tarjeta-editing-tag"
@@ -587,7 +588,7 @@ export function TarjetasSection({
       style: {
         color: `var(${cat.cssVar})`
       }
-    }, cat.label), " · ", p.cuotasTotal > 1 ? `Cuota ${idx + 1}/${p.cuotasTotal} · ${fmt(p.montoCuota)}` : fmt(p.montoCuota))), /*#__PURE__*/React.createElement("button", {
+    }, cat.label), " · ", p.cuotasTotal > 1 ? `Cuota ${idx + 1}/${p.cuotasTotal} · ${fmt(p.montoCuota)}` : fmt(p.montoCuota))), !readOnly && /*#__PURE__*/React.createElement("button", {
       className: "lf-tarjeta-icon-btn",
       onClick: () => revisar(p),
       disabled: revisando === p.id,
@@ -595,13 +596,13 @@ export function TarjetasSection({
     }, /*#__PURE__*/React.createElement(RefreshCw, {
       size: 12,
       className: revisando === p.id ? "lf-spin" : ""
-    })), /*#__PURE__*/React.createElement("button", {
+    })), !readOnly && /*#__PURE__*/React.createElement("button", {
       className: "lf-tarjeta-icon-btn",
       onClick: () => empezarEdicion(p),
       "aria-label": "Editar consumo"
     }, /*#__PURE__*/React.createElement(Pencil, {
       size: 12
-    })), /*#__PURE__*/React.createElement("button", {
+    })), !readOnly && /*#__PURE__*/React.createElement("button", {
       className: "lf-fijo-del",
       onClick: () => onBorrar(p),
       "aria-label": "Eliminar consumo"
@@ -624,7 +625,8 @@ export function FijosSection({
   pendientes,
   onSave,
   onCargar,
-  cotizacionDolar
+  cotizacionDolar,
+  readOnly
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(list);
@@ -666,7 +668,7 @@ export function FijosSection({
     className: "lf-col-head lf-fijos-head"
   }, /*#__PURE__*/React.createElement("h4", {
     className: "lf-fijos-title"
-  }, "Gastos fijos"), /*#__PURE__*/React.createElement("button", {
+  }, "Gastos fijos"), !readOnly && /*#__PURE__*/React.createElement("button", {
     className: "lf-edit-btn lf-edit-btn-col",
     onClick: () => {
       if (editing) save();else {
@@ -678,7 +680,7 @@ export function FijosSection({
     size: 12
   }) : /*#__PURE__*/React.createElement(Pencil, {
     size: 12
-  }), editing ? "Guardar" : "Editar")), editing ? /*#__PURE__*/React.createElement("div", {
+  }), editing ? "Guardar" : "Editar")), editing && !readOnly ? /*#__PURE__*/React.createElement("div", {
     className: "lf-fijos-editor"
   }, draft.map(f => /*#__PURE__*/React.createElement("div", {
     className: "lf-fijo-row",
@@ -763,7 +765,7 @@ export function FijosSection({
     })), /*#__PURE__*/React.createElement("span", {
       className: "lf-fijo-item-monto"
     }, f.moneda === "USD" ? `u$s ${f.monto} (≈ ${fmt((Number(f.monto) || 0) * (Number(cotizacionDolar) || 0))})` : fmt(f.monto)));
-  })), list.length > 0 && /*#__PURE__*/React.createElement("button", {
+  })), !readOnly && list.length > 0 && /*#__PURE__*/React.createElement("button", {
     className: "lf-fijo-cargar",
     onClick: onCargar,
     disabled: pendientes === 0
@@ -772,8 +774,13 @@ export function FijosSection({
 export function RowEntry({
   entry,
   onTogglePagado,
-  onRemove
+  onRemove,
+  readOnly
 }) {
+  // Antes borraba directo al tocar el tacho — un toque de más y perdías el
+  // movimiento sin aviso. Ahora el primer toque solo pide confirmar (mismo
+  // patrón que "Reiniciar mes"): un segundo toque en el ✓ recién borra.
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false);
   const cat = CATEGORIAS.find(c => c.id === entry.categoria);
   const esFijo = Boolean(entry.fijoId || entry.hogarId || entry.tarjetaId || entry.esTarjeta);
   const pendienteTarjeta = (entry.esTarjeta || entry.tarjetaId) && !entry.pagado;
@@ -797,19 +804,40 @@ export function RowEntry({
     className: "lf-entry-amt-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "lf-entry-amt " + (esPositivo ? "lf-pos" : "lf-neg")
-  }, esPositivo ? "+" : "−", fmt(Math.abs(entry.monto))), /*#__PURE__*/React.createElement("button", {
-    className: "lf-entry-del",
+  }, esPositivo ? "+" : "−", fmt(Math.abs(entry.monto))), !readOnly && (confirmandoBorrado ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    className: "lf-entry-del-confirm-yes",
     onClick: () => onRemove(entry.id),
+    "aria-label": "Confirmar: eliminar movimiento",
+    title: "Sí, eliminar"
+  }, /*#__PURE__*/React.createElement(Check, {
+    size: 12
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "lf-entry-del-confirm-no",
+    onClick: () => setConfirmandoBorrado(false),
+    "aria-label": "Cancelar",
+    title: "Cancelar"
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 12
+  }))) : /*#__PURE__*/React.createElement("button", {
+    className: "lf-entry-del",
+    onClick: () => setConfirmandoBorrado(true),
     "aria-label": "Eliminar movimiento"
   }, /*#__PURE__*/React.createElement(Trash2, {
     size: 12
-  }))), esFijo && /*#__PURE__*/React.createElement("button", {
+  })))), esFijo && (readOnly ? /*#__PURE__*/React.createElement("span", {
+    className: "lf-pagado-btn" + (entry.pagado ? " on" : ""),
+    style: {
+      cursor: "default"
+    }
+  }, /*#__PURE__*/React.createElement(Check, {
+    size: 11
+  }), entry.pagado ? "Pagado" : "No pagado") : /*#__PURE__*/React.createElement("button", {
     className: "lf-pagado-btn" + (entry.pagado ? " on" : ""),
     onClick: () => onTogglePagado(entry.id),
     title: entry.pagado ? "Marcar como no pagado" : "Marcar como pagado"
   }, /*#__PURE__*/React.createElement(Check, {
     size: 11
-  }), entry.pagado ? "Pagado" : "Marcar pagado")));
+  }), entry.pagado ? "Pagado" : "Marcar pagado"))));
 }
 export function Shell({
   children
