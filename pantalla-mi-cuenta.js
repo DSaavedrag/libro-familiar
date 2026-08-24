@@ -71,6 +71,13 @@ export function PersonColumn({
   }
   const pendientesFijos = (fijos || []).filter(f => !data.list.some(e => e.fijoId === f.id)).length;
   const [verDetalleTarjeta, setVerDetalleTarjeta] = useState(false);
+
+  // Qué etiqueta de tarjeta ("Sube", "Viajes", etc.) y qué categoría están
+  // desplegadas mostrando sus movimientos uno por uno, en vez de solo el
+  // total. Guardamos una sola clave abierta de cada tipo (como un acordeón),
+  // no hace falta más para el caso de uso ("me olvido si ya cargué tal cosa").
+  const [etiquetaAbierta, setEtiquetaAbierta] = useState(null);
+  const [categoriaAbierta, setCategoriaAbierta] = useState(null);
   const tarjetaEntriesMes = data.list.filter(e => e.tipo === "gasto" && (e.tarjetaId || e.esTarjeta));
   const totalTarjetaMes = tarjetaEntriesMes.reduce((s, e) => s + e.monto, 0);
   const detalleTarjetaPorCategoria = CATEGORIAS.map(c => {
@@ -78,7 +85,12 @@ export function PersonColumn({
     if (items.length === 0) return null;
     const porEtiqueta = {};
     items.forEach(e => {
-      porEtiqueta[e.descripcion] = (porEtiqueta[e.descripcion] || 0) + e.monto;
+      if (!porEtiqueta[e.descripcion]) porEtiqueta[e.descripcion] = {
+        total: 0,
+        items: []
+      };
+      porEtiqueta[e.descripcion].total += e.monto;
+      porEtiqueta[e.descripcion].items.push(e);
     });
     return {
       cat: c,
@@ -158,10 +170,31 @@ export function PersonColumn({
     }
   }, cat.label), /*#__PURE__*/React.createElement("span", {
     className: "lf-tarjeta-detalle-cat-total"
-  }, fmt(total))), Object.entries(porEtiqueta).map(([nombre, monto]) => /*#__PURE__*/React.createElement("div", {
-    className: "lf-tarjeta-detalle-item",
-    key: nombre
-  }, /*#__PURE__*/React.createElement("span", null, nombre), /*#__PURE__*/React.createElement("span", null, fmt(monto)))))))), editing && /*#__PURE__*/React.createElement("p", {
+  }, fmt(total))), Object.entries(porEtiqueta).map(([nombre, {
+    total: totalEtiqueta,
+    items
+  }]) => {
+    const key = `${cat.id}::${nombre}`;
+    const abierta = etiquetaAbierta === key;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "lf-tarjeta-detalle-item-wrap",
+      key: nombre
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "lf-tarjeta-detalle-item lf-tarjeta-detalle-item-toggle",
+      onClick: () => setEtiquetaAbierta(abierta ? null : key)
+    }, /*#__PURE__*/React.createElement("span", null, nombre, " ", /*#__PURE__*/React.createElement("span", {
+      className: "lf-tarjeta-detalle-item-count"
+    }, "(", items.length, ")")), /*#__PURE__*/React.createElement("span", null, fmt(totalEtiqueta), " ", /*#__PURE__*/React.createElement("span", {
+      className: "lf-tarjeta-detalle-arrow"
+    }, abierta ? "▲" : "▼"))), abierta && /*#__PURE__*/React.createElement("div", {
+      className: "lf-tarjeta-detalle-item-list"
+    }, items.map(e => /*#__PURE__*/React.createElement(RowEntry, {
+      key: e.id,
+      entry: e,
+      onTogglePagado: onTogglePagado,
+      onRemove: onRemoveEntry
+    }))));
+  }))))), editing && /*#__PURE__*/React.createElement("p", {
     className: "lf-base-note"
   }, "Se calcula siempre sobre tus ingresos de este mes:", " ", /*#__PURE__*/React.createElement("strong", null, fmt(data.ingresos)), ".", data.ingresos === 0 && " Cargá un ingreso para ver los montos en $."), /*#__PURE__*/React.createElement("div", {
     className: "lf-col-cats"
@@ -170,9 +203,15 @@ export function PersonColumn({
     const presu = editing ? draftBudgets[c.id] : budgets[c.id];
     const pct = presu > 0 ? Math.max(0, Math.min(100, gastado / presu * 100)) : 0;
     const restante = presu - gastado;
-    return /*#__PURE__*/React.createElement("div", {
-      className: "lf-col-cat-row",
+    const catAbierta = categoriaAbierta === c.id;
+    const movsCategoria = data.list.filter(e => e.tipo === "gasto" && e.categoria === c.id);
+    return /*#__PURE__*/React.createElement(React.Fragment, {
       key: c.id
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "lf-col-cat-row" + (!editing ? " lf-col-cat-row-clickable" : ""),
+      onClick: () => {
+        if (!editing) setCategoriaAbierta(catAbierta ? null : c.id);
+      }
     }, /*#__PURE__*/React.createElement(c.Icon, {
       size: 13,
       style: {
@@ -221,13 +260,24 @@ export function PersonColumn({
       className: "lf-col-cat-num"
     }, fmt(gastado)), presu > 0 && /*#__PURE__*/React.createElement("span", {
       className: "lf-col-cat-restante " + (restante >= 0 ? "lf-pos" : "lf-neg")
-    }, restante >= 0 ? `Quedan ${fmt(restante)}` : `Excedido ${fmt(Math.abs(restante))}`)), !editing && presu > 0 && /*#__PURE__*/React.createElement("div", {
+    }, restante >= 0 ? `Quedan ${fmt(restante)}` : `Excedido ${fmt(Math.abs(restante))}`), /*#__PURE__*/React.createElement("span", {
+      className: "lf-col-cat-arrow"
+    }, catAbierta ? "▲" : "▼")), !editing && presu > 0 && /*#__PURE__*/React.createElement("div", {
       className: "lf-col-mini-track" + (restante < 0 ? " lf-bar-exceeded" : ""),
       title: `${Math.round(pct)}% usado`,
       style: {
         background: `linear-gradient(to right, ${c.color} ${Math.max(pct, 3)}%, rgba(237,230,214,0.15) ${Math.max(pct, 3)}%)`
       }
-    }));
+    })), !editing && catAbierta && /*#__PURE__*/React.createElement("div", {
+      className: "lf-col-cat-mov-list"
+    }, movsCategoria.length === 0 ? /*#__PURE__*/React.createElement("p", {
+      className: "lf-empty"
+    }, "Sin movimientos en ", c.label, " este mes.") : movsCategoria.map(e => /*#__PURE__*/React.createElement(RowEntry, {
+      key: e.id,
+      entry: e,
+      onTogglePagado: onTogglePagado,
+      onRemove: onRemoveEntry
+    }))));
   }), editing && /*#__PURE__*/React.createElement("p", {
     className: "lf-pct-total lf-pct-total-col" + (pctTotal !== 100 ? " lf-pct-warn" : "")
   }, "Total: ", pctTotal, "% ", pctTotal !== 100 && "— debería sumar 100%"))), /*#__PURE__*/React.createElement("div", {

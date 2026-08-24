@@ -4,18 +4,115 @@
 // y arma la navegación — cada pantalla grande (Mi cuenta, Ahorros, Hogar) vive
 // en su propio archivo y se la llama desde acá, como los .prg que colgaban de
 // un sdmenu.prg.
+//
+// La lógica de "Tarjetas" (armar y guardar cuotas, tanto personales como de
+// Hogar) vive aparte, en logica-tarjetas.js — acá solo quedan las funciones
+// que tocan el estado de la app (guardar en Firebase, actualizar la
+// pantalla, mostrar errores). Es el primer bloque de este tipo que se separó;
+// la idea es ir sacando, de a poco, más bloques de lógica de este archivo.
 import React, { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp } from "lucide-react";
-import { CATEGORIAS, PERSONAS, fmt, IMPORT_AGOSTO_2026, PCT_DEFAULT, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth, monthDiff } from "./constants.js";
-import { storageSetRetry, fetchCotizacionLive } from "./storage.js";
+import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp, LogOut } from "lucide-react";
+import { CATEGORIAS, PERSONAS, fmt, IMPORT_AGOSTO_2026, PCT_DEFAULT, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
+import { storageSetRetry, fetchCotizacionLive, arrayAMapaPorId, mapaAArray } from "./storage.js";
 import { Shell, EtiquetasTarjetaPicker, CotizacionWidget } from "./components.js";
 import { PersonColumn } from "./pantalla-mi-cuenta.js";
 import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
+import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
+import { entrarOCrearCuenta, suscribirseASesion, cerrarSesion, buscarJugadorPorUid, obtenerJugadoresVinculados, vincularJugadorPropio } from "./auth.js";
 
 export function LibroFamiliar() {
   const [month, setMonth] = useState(monthKey(new Date()));
-  const [activePerson, setActivePerson] = useState(null);
+
+  // --- Sesión y jugador vinculado -------------------------------------------
+  // `activePerson` ya no se elige a mano tocando un botón — sale de quién
+  // inició sesión de verdad. `sesion` es el usuario de Firebase Auth (o null);
+  // `jugadorActual` es lo que se encuentra en la clave "jugadores" de Firebase
+  // para ese uid ({personKey, label, cssVar, email}). Ver auth.js.
+  const [sesion, setSesion] = useState(null);
+  const [sesionLista, setSesionLista] = useState(false);
+  const [jugadorActual, setJugadorActual] = useState(null);
+  const [buscandoJugador, setBuscandoJugador] = useState(false);
+  const [emailForm, setEmailForm] = useState("");
+  const [passwordForm, setPasswordForm] = useState("");
+  const [enviandoLogin, setEnviandoLogin] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [personKeysLibres, setPersonKeysLibres] = useState(null);
+  const [vinculando, setVinculando] = useState(false);
+  const activePerson = jugadorActual ? jugadorActual.personKey : null;
+  useEffect(() => {
+    const unsub = suscribirseASesion(user => {
+      setSesion(user);
+      setSesionLista(true);
+    });
+    return unsub;
+  }, []);
+  useEffect(() => {
+    if (!sesion) {
+      setJugadorActual(null);
+      return;
+    }
+    let cancelado = false;
+    setBuscandoJugador(true);
+    buscarJugadorPorUid(sesion.uid).then(j => {
+      if (!cancelado) {
+        setJugadorActual(j);
+        setBuscandoJugador(false);
+      }
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [sesion]);
+  useEffect(() => {
+    if (!sesion || buscandoJugador || jugadorActual) {
+      setPersonKeysLibres(null);
+      return;
+    }
+    let cancelado = false;
+    obtenerJugadoresVinculados().then(vinculados => {
+      if (cancelado) return;
+      const tomados = new Set(Object.values(vinculados).map(j => j.personKey));
+      setPersonKeysLibres(Object.keys(PERSONAS).filter(k => !tomados.has(k)));
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [sesion, buscandoJugador, jugadorActual]);
+  async function handleElegirJugador(personKey) {
+    setVinculando(true);
+    setLoginError("");
+    const res = await vincularJugadorPropio(personKey, PERSONAS[personKey].label, PERSONAS[personKey].cssVar);
+    if (!res.ok) {
+      setLoginError(res.error);
+      setVinculando(false);
+      return;
+    }
+    setJugadorActual({
+      personKey,
+      label: PERSONAS[personKey].label,
+      cssVar: PERSONAS[personKey].cssVar,
+      email: sesion.email
+    });
+    setVinculando(false);
+  }
+  async function handleEnviarLogin() {
+    const email = emailForm.trim();
+    const password = passwordForm;
+    if (!email || !password) return;
+    setEnviandoLogin(true);
+    setLoginError("");
+    const res = await entrarOCrearCuenta(email, password);
+    if (!res.ok) setLoginError(res.error);
+    // si res.ok, la sesión llega sola por suscribirseASesion.
+    setEnviandoLogin(false);
+  }
+  async function handleCerrarSesion() {
+    await cerrarSesion();
+    setJugadorActual(null);
+    setEmailForm("");
+    setPasswordForm("");
+  }
   const [entries, setEntries] = useState([]);
   const [settings, setSettings] = useState({
     diego: {
@@ -67,7 +164,7 @@ export function LibroFamiliar() {
       let ent = [];
       try {
         const r = await window.storage.get(`entries:${m}`, true);
-        ent = r ? JSON.parse(r.value) : [];
+        ent = r ? mapaAArray(JSON.parse(r.value)) : [];
       } catch {
         ent = [];
       }
@@ -112,7 +209,7 @@ export function LibroFamiliar() {
   const refreshEntriesSilent = useCallback(async m => {
     try {
       const r = await window.storage.get(`entries:${m}`, true);
-      setEntries(r ? JSON.parse(r.value) : []);
+      setEntries(r ? mapaAArray(JSON.parse(r.value)) : []);
     } catch {
       // si falla, no mostramos error — se reintenta solo en el próximo ciclo
     }
@@ -227,7 +324,7 @@ export function LibroFamiliar() {
   }, []);
   async function persistEntries(next) {
     setEntries(next);
-    const res = await storageSetRetry(`entries:${month}`, JSON.stringify(next), true);
+    const res = await storageSetRetry(`entries:${month}`, JSON.stringify(arrayAMapaPorId(next)), true);
     if (!res) {
       setErrorMsg("No se pudo guardar el movimiento. Probá de nuevo.");
       return false;
@@ -350,27 +447,6 @@ export function LibroFamiliar() {
     });
     persistEntries([...nuevas, ...entries]);
   }
-  async function addEntryToOtherMonth(mKey, entry) {
-    let existing = [];
-    try {
-      const r = await window.storage.get(`entries:${mKey}`, true);
-      existing = r ? JSON.parse(r.value) : [];
-    } catch {
-      existing = [];
-    }
-    const res = await storageSetRetry(`entries:${mKey}`, JSON.stringify([entry, ...existing]), true);
-    return Boolean(res);
-  }
-  async function removeEntryFromOtherMonth(mKey, tarjetaId) {
-    try {
-      const r = await window.storage.get(`entries:${mKey}`, true);
-      const existing = r ? JSON.parse(r.value) : [];
-      const filtered = existing.filter(e => e.tarjetaId !== tarjetaId);
-      await storageSetRetry(`entries:${mKey}`, JSON.stringify(filtered), true);
-    } catch {
-      // si no hay nada guardado para ese mes, no hay nada que borrar
-    }
-  }
   async function saveTarjetasFor(personId, list) {
     setTarjetas(prev => ({
       ...prev,
@@ -387,67 +463,6 @@ export function LibroFamiliar() {
     const res = await storageSetRetry(`etiquetasTarjeta:${personId}`, JSON.stringify(list), true);
     if (!res) setErrorMsg("No se pudieron guardar las etiquetas. Probá de nuevo.");
   }
-  function buildCuotaEntry({
-    purchaseId,
-    personId,
-    categoria,
-    descripcion,
-    montoCuota,
-    cuotasNum,
-    idx
-  }) {
-    return {
-      id: `${purchaseId}-c${idx}`,
-      person: personId,
-      tipo: "gasto",
-      categoria,
-      monto: montoCuota,
-      descripcion: cuotasNum > 1 ? `${descripcion} (cuota ${idx + 1}/${cuotasNum})` : descripcion,
-      tarjetaId: purchaseId,
-      cuotaIndex: idx + 1,
-      cuotasTotal: cuotasNum,
-      ts: Date.now() - idx
-    };
-  }
-
-  // Escribe las cuotas de startMonth en adelante. Devuelve la lista de meses (YYYY-MM) que no se pudieron guardar.
-  async function writeInstallments(personId, {
-    descripcion,
-    categoria,
-    cuotasNum,
-    montoCuota,
-    startMonth,
-    purchaseId
-  }) {
-    const fallidos = [];
-    for (let i = 0; i < cuotasNum; i++) {
-      const mKey = shiftMonth(startMonth, i);
-      const entry = buildCuotaEntry({
-        purchaseId,
-        personId,
-        categoria,
-        descripcion,
-        montoCuota,
-        cuotasNum,
-        idx: i
-      });
-      const ok = mKey === month ? await persistEntries([entry, ...entries]) : await addEntryToOtherMonth(mKey, entry);
-      if (!ok) fallidos.push(mKey);
-      if (i < cuotasNum - 1) await new Promise(r => setTimeout(r, 150));
-    }
-    return fallidos;
-  }
-  async function removeInstallments(purchase) {
-    for (let i = 0; i < purchase.cuotasTotal; i++) {
-      const mKey = shiftMonth(purchase.mesInicio, i);
-      if (mKey === month) {
-        await persistEntries(entries.filter(e => e.tarjetaId !== purchase.id));
-      } else {
-        await removeEntryFromOtherMonth(mKey, purchase.id);
-      }
-      if (i < purchase.cuotasTotal - 1) await new Promise(r => setTimeout(r, 100));
-    }
-  }
   async function cargarConsumoTarjeta(personId, {
     descripcion,
     monto,
@@ -458,13 +473,16 @@ export function LibroFamiliar() {
     const montoTotal = Number(monto) || 0;
     const montoCuota = Math.round(montoTotal / cuotasNum * 100) / 100;
     const purchaseId = `tarjeta-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const mesesFallidos = await writeInstallments(personId, {
-      descripcion,
+    const mesesFallidos = await escribirCuotas({
+      purchaseId,
+      personId,
       categoria,
+      descripcion,
       cuotasNum,
       montoCuota,
       startMonth: month,
-      purchaseId
+      writeEntriesForMonth,
+      hogar: false
     });
     const registro = {
       id: purchaseId,
@@ -482,17 +500,25 @@ export function LibroFamiliar() {
     }
   }
   async function editarConsumoTarjeta(personId, purchase, nuevosValores) {
-    await removeInstallments(purchase);
+    await removeInstallments({
+      purchase,
+      month,
+      entries,
+      persistEntries
+    });
     const cuotasNum = Math.max(1, Math.round(Number(nuevosValores.cuotas)) || 1);
     const montoTotal = Number(nuevosValores.monto) || 0;
     const montoCuota = Math.round(montoTotal / cuotasNum * 100) / 100;
-    const mesesFallidos = await writeInstallments(personId, {
-      descripcion: nuevosValores.descripcion,
+    const mesesFallidos = await escribirCuotas({
+      purchaseId: purchase.id,
+      personId,
       categoria: nuevosValores.categoria,
+      descripcion: nuevosValores.descripcion,
       cuotasNum,
       montoCuota,
       startMonth: purchase.mesInicio,
-      purchaseId: purchase.id
+      writeEntriesForMonth,
+      hogar: false
     });
     const registro = {
       id: purchase.id,
@@ -509,66 +535,39 @@ export function LibroFamiliar() {
       setErrorMsg(`"${nuevosValores.descripcion}": se guardaron ${cuotasNum - mesesFallidos.length} de ${cuotasNum} cuotas. Faltan ${mesesFallidos.map(monthLabel).join(", ")}.`);
     }
   }
-  async function reintentarCuotasFaltantes(personId, purchase) {
-    const pendientes = purchase.mesesFallidos || [];
-    if (pendientes.length === 0) return;
-    const nuevosFallidos = [];
-    for (const mKey of pendientes) {
-      const idx = monthDiff(purchase.mesInicio, mKey);
-      const entry = buildCuotaEntry({
-        purchaseId: purchase.id,
-        personId,
-        categoria: purchase.categoria,
-        descripcion: purchase.descripcion,
-        montoCuota: purchase.montoCuota,
-        cuotasNum: purchase.cuotasTotal,
-        idx
-      });
-      const ok = mKey === month ? await persistEntries([entry, ...entries]) : await addEntryToOtherMonth(mKey, entry);
-      if (!ok) nuevosFallidos.push(mKey);
-      await new Promise(r => setTimeout(r, 150));
-    }
-    await saveTarjetasFor(personId, (tarjetas[personId] || []).map(p => p.id === purchase.id ? {
-      ...p,
-      mesesFallidos: nuevosFallidos
-    } : p));
-  }
   async function borrarConsumoTarjeta(personId, purchase) {
-    await removeInstallments(purchase);
+    await removeInstallments({
+      purchase,
+      month,
+      entries,
+      persistEntries
+    });
     await saveTarjetasFor(personId, (tarjetas[personId] || []).filter(p => p.id !== purchase.id));
   }
-
-  // Chequea, mes por mes, si la cuota realmente está guardada en ese período (no solo en el registro).
-  async function detectarCuotasFaltantes(purchase) {
-    const faltantes = [];
-    for (let i = 0; i < purchase.cuotasTotal; i++) {
-      const mKey = shiftMonth(purchase.mesInicio, i);
-      let existing;
-      if (mKey === month) {
-        existing = entries;
-      } else {
-        try {
-          const r = await window.storage.get(`entries:${mKey}`, true);
-          existing = r ? JSON.parse(r.value) : [];
-        } catch {
-          existing = [];
-        }
-      }
-      if (!existing.some(e => e.tarjetaId === purchase.id && e.cuotaIndex === i + 1)) {
-        faltantes.push(mKey);
-      }
-    }
-    return faltantes;
-  }
   async function revisarCuotasTarjeta(personId, purchase) {
-    const faltantes = await detectarCuotasFaltantes(purchase);
+    const faltantes = await detectarCuotasFaltantes({
+      purchase,
+      month,
+      entries,
+      hogar: false
+    });
     const patched = {
       ...purchase,
       mesesFallidos: faltantes
     };
     await saveTarjetasFor(personId, (tarjetas[personId] || []).map(p => p.id === purchase.id ? patched : p));
     if (faltantes.length > 0) {
-      await reintentarCuotasFaltantes(personId, patched);
+      const nuevosFallidos = await reintentarCuotasFaltantes({
+        purchase: patched,
+        pendientes: faltantes,
+        writeEntriesForMonth,
+        hogar: false,
+        personId
+      });
+      await saveTarjetasFor(personId, (tarjetas[personId] || []).map(p => p.id === purchase.id ? {
+        ...p,
+        mesesFallidos: nuevosFallidos
+      } : p));
     }
   }
   async function saveTarjetasHogar(list) {
@@ -585,35 +584,10 @@ export function LibroFamiliar() {
   // por tener tarjetaId === hogarId, que es como los genera crearConsumoTarjetaHogar) cuyo id no
   // esté en la lista de registros, y lo reconstruye a partir de esos mismos movimientos.
   async function repararTarjetasHogar() {
-    const candidatos = entries.filter(e => e.tarjetaId && e.hogarId && e.tarjetaId === e.hogarId);
-    const porId = {};
-    candidatos.forEach(e => {
-      if (!porId[e.tarjetaId]) porId[e.tarjetaId] = [];
-      porId[e.tarjetaId].push(e);
-    });
-    const idsExistentes = new Set(tarjetasHogar.map(p => p.id));
-    const nuevosRegistros = [];
-    Object.entries(porId).forEach(([id, grupo]) => {
-      if (idsExistentes.has(id)) return;
-      const base = grupo[0];
-      const montoCuotaTotal = Math.round(grupo.reduce((s, e) => s + e.monto, 0) * 100) / 100;
-      const cuotasTotal = base.cuotasTotal || 1;
-      const cuotaIndex = base.cuotaIndex || 1;
-      const mesInicio = shiftMonth(month, -(cuotaIndex - 1));
-      const descripcionBase = (base.descripcion || "")
-        .replace(/\s*\(cuota \d+\/\d+, hogar\)\s*$/, "")
-        .replace(/\s*\(hogar\)\s*$/, "")
-        .trim();
-      nuevosRegistros.push({
-        id,
-        descripcion: descripcionBase || "Consumo del hogar",
-        categoria: base.categoria,
-        montoTotal: Math.round(montoCuotaTotal * cuotasTotal * 100) / 100,
-        montoCuota: montoCuotaTotal,
-        cuotasTotal,
-        mesInicio,
-        mesesFallidos: [],
-      });
+    const nuevosRegistros = calcularRegistrosTarjetaHogarAReparar({
+      entries,
+      tarjetasHogar,
+      month
     });
     if (nuevosRegistros.length === 0) {
       setErrorMsg("No se encontraron consumos de tarjeta del hogar para reparar este mes.");
@@ -635,64 +609,12 @@ export function LibroFamiliar() {
     let existing = [];
     try {
       const r = await window.storage.get(`entries:${mKey}`, true);
-      existing = r ? JSON.parse(r.value) : [];
+      existing = r ? mapaAArray(JSON.parse(r.value)) : [];
     } catch {
       existing = [];
     }
-    const res = await storageSetRetry(`entries:${mKey}`, JSON.stringify([...newEntries, ...existing.filter(e => !ids.has(e.id))]), true);
+    const res = await storageSetRetry(`entries:${mKey}`, JSON.stringify(arrayAMapaPorId([...newEntries, ...existing.filter(e => !ids.has(e.id))])), true);
     return Boolean(res);
-  }
-  function buildCuotaEntryHogar({
-    purchaseId,
-    personId,
-    categoria,
-    descripcion,
-    montoCuota,
-    cuotasNum,
-    idx
-  }) {
-    return {
-      id: `${purchaseId}-c${idx}-${personId}`,
-      person: personId,
-      tipo: "gasto",
-      categoria,
-      monto: montoCuota,
-      descripcion: cuotasNum > 1 ? `${descripcion} (cuota ${idx + 1}/${cuotasNum}, hogar)` : `${descripcion} (hogar)`,
-      tarjetaId: purchaseId,
-      hogarId: purchaseId,
-      cuotaIndex: idx + 1,
-      cuotasTotal: cuotasNum,
-      ts: Date.now() - idx
-    };
-  }
-
-  // Igual que writeInstallments, pero por cada cuota escribe DOS entradas (Diego y Yani) según splitHogar,
-  // ambas juntas en un solo guardado por mes.
-  async function writeInstallmentsHogar({
-    descripcion,
-    categoria,
-    cuotasNum,
-    montoCuotaTotal,
-    startMonth,
-    purchaseId
-  }) {
-    const fallidos = [];
-    for (let i = 0; i < cuotasNum; i++) {
-      const mKey = shiftMonth(startMonth, i);
-      const pares = ["diego", "yani"].map(pid => buildCuotaEntryHogar({
-        purchaseId,
-        personId: pid,
-        categoria,
-        descripcion,
-        montoCuota: Math.round(montoCuotaTotal * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100,
-        cuotasNum,
-        idx: i
-      }));
-      const ok = await writeEntriesForMonth(mKey, pares);
-      if (!ok) fallidos.push(mKey);
-      if (i < cuotasNum - 1) await new Promise(r => setTimeout(r, 150));
-    }
-    return fallidos;
   }
   async function crearConsumoTarjetaHogar({
     descripcion,
@@ -704,13 +626,16 @@ export function LibroFamiliar() {
     const montoTotal = Number(monto) || 0;
     const montoCuotaTotal = Math.round(montoTotal / cuotasNum * 100) / 100;
     const purchaseId = `tarjetahogar-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const mesesFallidos = await writeInstallmentsHogar({
-      descripcion,
+    const mesesFallidos = await escribirCuotas({
+      purchaseId,
       categoria,
+      descripcion,
       cuotasNum,
       montoCuotaTotal,
       startMonth: month,
-      purchaseId
+      writeEntriesForMonth,
+      hogar: true,
+      splitHogar
     });
     const registro = {
       id: purchaseId,
@@ -728,17 +653,25 @@ export function LibroFamiliar() {
     }
   }
   async function editarConsumoTarjetaHogar(purchase, nuevosValores) {
-    await removeInstallments(purchase); // filtra por tarjetaId, saca las dos entradas (Diego y Yani) de cada mes
+    await removeInstallments({
+      purchase,
+      month,
+      entries,
+      persistEntries
+    }); // filtra por tarjetaId, saca las dos entradas (Diego y Yani) de cada mes
     const cuotasNum = Math.max(1, Math.round(Number(nuevosValores.cuotas)) || 1);
     const montoTotal = Number(nuevosValores.monto) || 0;
     const montoCuotaTotal = Math.round(montoTotal / cuotasNum * 100) / 100;
-    const mesesFallidos = await writeInstallmentsHogar({
-      descripcion: nuevosValores.descripcion,
+    const mesesFallidos = await escribirCuotas({
+      purchaseId: purchase.id,
       categoria: nuevosValores.categoria,
+      descripcion: nuevosValores.descripcion,
       cuotasNum,
       montoCuotaTotal,
       startMonth: purchase.mesInicio,
-      purchaseId: purchase.id
+      writeEntriesForMonth,
+      hogar: true,
+      splitHogar
     });
     const registro = {
       id: purchase.id,
@@ -753,32 +686,21 @@ export function LibroFamiliar() {
     await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? registro : p));
   }
   async function borrarConsumoTarjetaHogar(purchase) {
-    await removeInstallments(purchase);
+    await removeInstallments({
+      purchase,
+      month,
+      entries,
+      persistEntries
+    });
     await saveTarjetasHogar(tarjetasHogar.filter(p => p.id !== purchase.id));
   }
-  async function detectarCuotasFaltantesHogar(purchase) {
-    const faltantes = [];
-    for (let i = 0; i < purchase.cuotasTotal; i++) {
-      const mKey = shiftMonth(purchase.mesInicio, i);
-      let existing;
-      if (mKey === month) {
-        existing = entries;
-      } else {
-        try {
-          const r = await window.storage.get(`entries:${mKey}`, true);
-          existing = r ? JSON.parse(r.value) : [];
-        } catch {
-          existing = [];
-        }
-      }
-      const tieneDiego = existing.some(e => e.tarjetaId === purchase.id && e.cuotaIndex === i + 1 && e.person === "diego");
-      const tieneYani = existing.some(e => e.tarjetaId === purchase.id && e.cuotaIndex === i + 1 && e.person === "yani");
-      if (!tieneDiego || !tieneYani) faltantes.push(mKey);
-    }
-    return faltantes;
-  }
   async function revisarCuotasTarjetaHogar(purchase) {
-    const faltantes = await detectarCuotasFaltantesHogar(purchase);
+    const faltantes = await detectarCuotasFaltantes({
+      purchase,
+      month,
+      entries,
+      hogar: true
+    });
     if (faltantes.length === 0) {
       await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? {
         ...p,
@@ -786,22 +708,13 @@ export function LibroFamiliar() {
       } : p));
       return;
     }
-    const nuevosFallidos = [];
-    for (const mKey of faltantes) {
-      const idx = monthDiff(purchase.mesInicio, mKey);
-      const pares = ["diego", "yani"].map(pid => buildCuotaEntryHogar({
-        purchaseId: purchase.id,
-        personId: pid,
-        categoria: purchase.categoria,
-        descripcion: purchase.descripcion,
-        montoCuota: Math.round(purchase.montoCuota * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100,
-        cuotasNum: purchase.cuotasTotal,
-        idx
-      }));
-      const ok = await writeEntriesForMonth(mKey, pares);
-      if (!ok) nuevosFallidos.push(mKey);
-      await new Promise(r => setTimeout(r, 150));
-    }
+    const nuevosFallidos = await reintentarCuotasFaltantes({
+      purchase,
+      pendientes: faltantes,
+      writeEntriesForMonth,
+      hogar: true,
+      splitHogar
+    });
     await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? {
       ...p,
       mesesFallidos: nuevosFallidos
@@ -910,7 +823,7 @@ export function LibroFamiliar() {
     setEntries(emptyEntries);
     setSettings(defaultSett);
     setConfirmingReset(false);
-    const r1 = await storageSetRetry(`entries:${month}`, JSON.stringify(emptyEntries), true);
+    const r1 = await storageSetRetry(`entries:${month}`, JSON.stringify(arrayAMapaPorId(emptyEntries)), true);
     const r2 = await storageSetRetry(`settings:${month}`, JSON.stringify(defaultSett), true);
     if (!r1 || !r2) setErrorMsg("No se pudo reiniciar el mes del todo. Probá de nuevo.");
   }
@@ -959,7 +872,18 @@ export function LibroFamiliar() {
     saldo: diego.ingresos + yani.ingresos - (diego.gastos + yani.gastos),
     porCategoria: Object.fromEntries(CATEGORIAS.map(c => [c.id, (diego.porCategoria[c.id] || 0) + (yani.porCategoria[c.id] || 0)]))
   };
-  if (!activePerson) {
+  if (!sesionLista) {
+    return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+      className: "lf-gate"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "lf-gate-card"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "lf-eyebrow"
+    }, "Libro Familiar"), /*#__PURE__*/React.createElement("p", {
+      className: "lf-sub"
+    }, "Verificando tu sesión…"))));
+  }
+  if (!sesion) {
     return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate"
     }, /*#__PURE__*/React.createElement("div", {
@@ -968,18 +892,102 @@ export function LibroFamiliar() {
       className: "lf-eyebrow"
     }, "Libro Familiar"), /*#__PURE__*/React.createElement("h1", {
       className: "lf-h1"
-    }, "¿Quién carga hoy?"), /*#__PURE__*/React.createElement("p", {
+    }, "¿Quién sos?"), /*#__PURE__*/React.createElement("p", {
       className: "lf-sub"
-    }, "Elegí tu nombre para empezar a anotar."), /*#__PURE__*/React.createElement("div", {
-      className: "lf-gate-buttons"
-    }, Object.entries(PERSONAS).map(([id, p]) => /*#__PURE__*/React.createElement("button", {
-      key: id,
-      className: "lf-gate-btn",
+    }, "Entrá con tu email y contraseña. Si es la primera vez, se crea la cuenta sola."), /*#__PURE__*/React.createElement("div", {
+      className: "lf-gate-form"
+    }, /*#__PURE__*/React.createElement("input", {
+      className: "lf-input",
+      type: "email",
+      placeholder: "tu@email.com",
+      value: emailForm,
+      onChange: e => setEmailForm(e.target.value),
+      onKeyDown: e => e.key === "Enter" && handleEnviarLogin()
+    }), /*#__PURE__*/React.createElement("input", {
+      className: "lf-input",
+      type: "password",
+      placeholder: "contraseña",
+      value: passwordForm,
+      onChange: e => setPasswordForm(e.target.value),
+      onKeyDown: e => e.key === "Enter" && handleEnviarLogin()
+    }), /*#__PURE__*/React.createElement("button", {
+      className: "lf-add-btn",
+      onClick: handleEnviarLogin,
+      disabled: enviandoLogin || !emailForm.trim() || !passwordForm
+    }, enviandoLogin ? "Entrando…" : "Entrar")), loginError && /*#__PURE__*/React.createElement("p", {
+      className: "lf-gate-error"
+    }, loginError))));
+  }
+  if (buscandoJugador) {
+    return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+      className: "lf-gate"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "lf-gate-card"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "lf-sub"
+    }, "Buscando tu perfil…"))));
+  }
+  if (!jugadorActual) {
+    if (personKeysLibres === null) {
+      return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+        className: "lf-gate"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "lf-gate-card"
+      }, /*#__PURE__*/React.createElement("p", {
+        className: "lf-sub"
+      }, "Buscando tu perfil…"))));
+    }
+    if (personKeysLibres.length > 0) {
+      return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+        className: "lf-gate"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "lf-gate-card"
+      }, /*#__PURE__*/React.createElement("p", {
+        className: "lf-eyebrow"
+      }, "Libro Familiar"), /*#__PURE__*/React.createElement("h1", {
+        className: "lf-h1"
+      }, "¿Quién sos?"), /*#__PURE__*/React.createElement("p", {
+        className: "lf-sub"
+      }, "Primera vez con ", /*#__PURE__*/React.createElement("strong", null, sesion.email), " — decinos cuál de los dos jugadores sos."), /*#__PURE__*/React.createElement("div", {
+        className: "lf-gate-form"
+      }, personKeysLibres.map(k => /*#__PURE__*/React.createElement("button", {
+        key: k,
+        className: "lf-add-btn",
+        disabled: vinculando,
+        onClick: () => handleElegirJugador(k)
+      }, "Soy ", PERSONAS[k].label))), loginError && /*#__PURE__*/React.createElement("p", {
+        className: "lf-gate-error"
+      }, loginError), /*#__PURE__*/React.createElement("button", {
+        className: "lf-reset-btn",
+        onClick: handleCerrarSesion,
+        style: {
+          marginTop: 16
+        }
+      }, /*#__PURE__*/React.createElement(LogOut, {
+        size: 13
+      }), " Probar con otra cuenta"))));
+    }
+    return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+      className: "lf-gate"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "lf-gate-card"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "lf-eyebrow"
+    }, "Libro Familiar"), /*#__PURE__*/React.createElement("h1", {
+      className: "lf-h1"
+    }, "Ya están todos los jugadores tomados"), /*#__PURE__*/React.createElement("p", {
+      className: "lf-sub"
+    }, "Entraste con ", /*#__PURE__*/React.createElement("strong", null, sesion.email), ", pero los jugadores de esta familia ya están vinculados a otras cuentas. Si esto es un error, avisale a quien administra la app (necesita este ID): "), /*#__PURE__*/React.createElement("code", {
+      className: "lf-gate-uid"
+    }, sesion.uid), /*#__PURE__*/React.createElement("button", {
+      className: "lf-reset-btn",
+      onClick: handleCerrarSesion,
       style: {
-        "--accent": `var(${p.cssVar})`
-      },
-      onClick: () => setActivePerson(id)
-    }, p.label))))));
+        marginTop: 16
+      }
+    }, /*#__PURE__*/React.createElement(LogOut, {
+      size: 13
+    }), " Probar con otra cuenta"))));
   }
   return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("header", {
     className: "lf-header"
@@ -992,9 +1000,14 @@ export function LibroFamiliar() {
     style: {
       "--accent": `var(${PERSONAS[activePerson].cssVar})`
     },
-    onClick: () => setActivePerson(activePerson === "diego" ? "yani" : "diego"),
-    title: "Cambiar de usuario"
-  }, PERSONAS[activePerson].label)), /*#__PURE__*/React.createElement("div", {
+    onClick: handleCerrarSesion,
+    title: "Cerrar sesión"
+  }, PERSONAS[activePerson].label, /*#__PURE__*/React.createElement(LogOut, {
+    size: 13,
+    style: {
+      marginLeft: 6
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "lf-tabbar"
   }, /*#__PURE__*/React.createElement("button", {
     className: "lf-tab-btn" + (activeTab === "registro" ? " on" : ""),

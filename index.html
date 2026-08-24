@@ -11,47 +11,9 @@
   #root { width: 100%; max-width: 1240px; }
 </style>
 
-<!-- Capa de almacenamiento: reemplaza window.storage (el que usaba el artifact de Claude)
-     por la REST API de Firebase Realtime Database. Todo el resto del código de la app
-     (lógica de negocio) no sabe que esto cambió. -->
 <script>
   window.LF_FIREBASE_URL = "https://libro-saavedra-juarez-default-rtdb.firebaseio.com";
   window.LF_HOGAR_ID = "diego-yani";
-
-  window.storage = {
-    async get(key) {
-      try {
-        const res = await fetch(
-          `${window.LF_FIREBASE_URL}/${window.LF_HOGAR_ID}/${encodeURIComponent(key)}.json`
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data === null || data === undefined) return null;
-        return { value: JSON.stringify(data) };
-      } catch (e) {
-        console.error("storage.get error", key, e);
-        return null;
-      }
-    },
-    async set(key, value) {
-      try {
-        const parsed = JSON.parse(value);
-        const res = await fetch(
-          `${window.LF_FIREBASE_URL}/${window.LF_HOGAR_ID}/${encodeURIComponent(key)}.json`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(parsed),
-          }
-        );
-        if (!res.ok) return null;
-        return true;
-      } catch (e) {
-        console.error("storage.set error", key, e);
-        return null;
-      }
-    },
-  };
 </script>
 
 <script type="importmap">
@@ -59,7 +21,9 @@
   "imports": {
     "react": "https://esm.sh/react@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?external=react",
-    "lucide-react": "https://esm.sh/lucide-react@0.462.0?external=react"
+    "lucide-react": "https://esm.sh/lucide-react@0.462.0?external=react",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js"
   }
 }
 </script>
@@ -69,7 +33,61 @@
 <script type="module">
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { auth } from "./auth.js";
 import { LibroFamiliar } from "./menu.js";
+
+// Capa de almacenamiento: reemplaza window.storage (el que usaba el artifact de Claude)
+// por la REST API de Firebase Realtime Database. Todo el resto del código de la app
+// (lógica de negocio) no sabe que esto cambió.
+//
+// Distinto a antes: ahora manda el token de sesión (si hay alguien logueado) como
+// parámetro "auth" en cada pedido, para que las reglas de seguridad de Firebase
+// sepan quién está pidiendo leer o escribir y puedan aplicar los permisos reales
+// (ver database.rules.json). Sin ese token, las reglas tratan el pedido como
+// anónimo y lo rechazan — así es como se cierra el "cualquiera con el link edita
+// cualquier cosa" que tenía la app hasta ahora.
+async function tokenDeSesion() {
+  return auth.currentUser ? await auth.currentUser.getIdToken() : null;
+}
+
+window.storage = {
+  async get(key) {
+    try {
+      const token = await tokenDeSesion();
+      const authParam = token ? `?auth=${encodeURIComponent(token)}` : "";
+      const res = await fetch(
+        `${window.LF_FIREBASE_URL}/${window.LF_HOGAR_ID}/${encodeURIComponent(key)}.json${authParam}`
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data === null || data === undefined) return null;
+      return { value: JSON.stringify(data) };
+    } catch (e) {
+      console.error("storage.get error", key, e);
+      return null;
+    }
+  },
+  async set(key, value) {
+    try {
+      const parsed = JSON.parse(value);
+      const token = await tokenDeSesion();
+      const authParam = token ? `?auth=${encodeURIComponent(token)}` : "";
+      const res = await fetch(
+        `${window.LF_FIREBASE_URL}/${window.LF_HOGAR_ID}/${encodeURIComponent(key)}.json${authParam}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed),
+        }
+      );
+      if (!res.ok) return null;
+      return true;
+    } catch (e) {
+      console.error("storage.set error", key, e);
+      return null;
+    }
+  },
+};
 
 const rootEl = document.getElementById("root");
 createRoot(rootEl).render(/*#__PURE__*/React.createElement(LibroFamiliar, null));

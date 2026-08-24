@@ -27,3 +27,35 @@ export async function fetchCotizacionLive() {
     return null;
   }
 }
+
+// --- Movimientos: array <-> mapa por id -------------------------------------
+// Los movimientos (entries) se guardan en Firebase como un objeto {id: entry},
+// no como un array — así las reglas de seguridad pueden proteger cada
+// movimiento por separado (solo su dueño lo edita o lo borra) en vez de tener
+// que confiar en que quien manda el guardado no toque los ajenos. El resto de
+// la app sigue trabajando con `entries` como array de siempre: estas dos
+// funciones son la única frontera donde se convierte de un formato al otro,
+// justo antes de mandar a Firebase y justo después de traer de ahí.
+export function arrayAMapaPorId(arr) {
+  const map = {};
+  (arr || []).forEach(item => {
+    if (item && item.id) map[item.id] = item;
+  });
+  return map;
+}
+export function mapaAArray(map) {
+  if (!map) return [];
+  return Object.values(map);
+}
+
+// Trae el mapeo de "quién es cada jugador" (uid de Firebase Auth -> persona
+// de la app). Se guarda en la clave plana "jugadores" (sin prefijo de mes ni
+// de persona, como fijosHogar o reservas). Ver auth.js para cómo se usa.
+export async function obtenerJugadores() {
+  try {
+    const r = await window.storage.get("jugadores");
+    return r ? JSON.parse(r.value) : {};
+  } catch {
+    return {};
+  }
+}

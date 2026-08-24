@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "diego-yani": {
+      "$key": {
+        ".read": "auth != null",
+        ".write": "auth != null && (\n          $key === 'jugadores' ? false :\n          $key.beginsWith('entries:') ? false :\n          $key.beginsWith('settings:') ? (\n            (data.child('diego').val() === newData.child('diego').val() || root.child('diego-yani/jugadores').child(auth.uid).child('personKey').val() === 'diego') &&\n            (data.child('yani').val() === newData.child('yani').val() || root.child('diego-yani/jugadores').child(auth.uid).child('personKey').val() === 'yani')\n          ) :\n          true\n        )",
+        "$childKey": {
+          ".write": "auth != null && (\n            ($key.beginsWith('entries:') && (\n              (data.exists() && newData.exists() && data.val() === newData.val()) ||\n              (\n                (!data.exists() || data.child('hogarId').exists() || data.child('person').val() === root.child('diego-yani/jugadores').child(auth.uid).child('personKey').val()) &&\n                (!newData.exists() || newData.child('hogarId').exists() || newData.child('person').val() === root.child('diego-yani/jugadores').child(auth.uid).child('personKey').val())\n              )\n            )) ||\n            (\n              $key === 'jugadores' && $childKey === auth.uid && !data.exists() && newData.exists()\n            )\n          )"
+        }
+      },
+      ".read": false,
+      ".write": false
+    },
+    ".read": false,
+    ".write": false
+  }
+}
