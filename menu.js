@@ -1107,11 +1107,13 @@ export function LibroFamiliar() {
   }
   return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("header", {
     className: "lf-header"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
-    className: "lf-eyebrow"
-  }, "Libro Familiar"), /*#__PURE__*/React.createElement("h1", {
-    className: "lf-h1"
-  }, "Cuenta compartida")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lf-brand"
+  }, /*#__PURE__*/React.createElement("img", {
+    src: "logo-liah.png",
+    alt: "Líah — gestión de gastos del hogar",
+    className: "lf-brand-logo"
+  })), /*#__PURE__*/React.createElement("div", {
     className: "lf-header-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "lf-switch",

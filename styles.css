@@ -46,6 +46,16 @@
       }
       .lf-sub { color: var(--ink-soft); font-size: 14px; margin: 6px 0 0; }
 
+      .lf-brand {
+        display: flex;
+        align-items: flex-end;
+      }
+      .lf-brand-logo {
+        height: 68px;
+        width: auto;
+        display: block;
+      }
+
       .lf-header {
         display: flex;
         align-items: flex-end;
