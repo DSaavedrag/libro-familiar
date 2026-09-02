@@ -3,45 +3,52 @@
 // pero que no tienen estado "de la app" propio.
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Pencil, Check, CreditCard, RefreshCw, X } from "lucide-react";
-import { CATEGORIAS, fmt, monthLabel, monthDiff, shiftMonth } from "./constants.js";
+import { fmt, monthLabel, monthDiff, shiftMonth, categoriaDe, iconoDe } from "./constants.js";
 
-export function budgetsFrom(pct, ingresos) {
-  return Object.fromEntries(CATEGORIAS.map(c => [c.id, (Number(ingresos) || 0) * (Number(pct[c.id]) || 0) / 100]));
+export function budgetsFrom(pct, ingresos, categorias) {
+  return Object.fromEntries((categorias || []).map(c => [c.id, (Number(ingresos) || 0) * (Number(pct[c.id]) || 0) / 100]));
 }
 export function CategoryDots({
   value,
-  onChange
+  onChange,
+  categorias
 }) {
-  const idx = Math.max(0, CATEGORIAS.findIndex(c => c.id === value));
-  const cat = CATEGORIAS[idx];
+  const cats = categorias || [];
+  const maxIdx = Math.max(1, cats.length - 1);
+  const idx = Math.max(0, cats.findIndex(c => c.id === value));
+  const cat = cats[idx] || cats[0];
+  if (!cat) return null;
   return /*#__PURE__*/React.createElement("div", {
     className: "lf-fijo-cat",
     style: {
-      "--accent": `var(${cat.cssVar})`
+      "--accent": cat.color
     }
   }, /*#__PURE__*/React.createElement("input", {
     className: "lf-fijo-cat-slider",
     style: {
-      "--fill": `${idx / 3 * 100}%`
+      "--fill": `${idx / maxIdx * 100}%`
     },
     type: "range",
     min: 0,
-    max: 3,
+    max: maxIdx,
     step: 1,
     value: idx,
-    onChange: e => onChange(CATEGORIAS[Number(e.target.value)].id)
+    onChange: e => {
+      const elegida = cats[Number(e.target.value)];
+      if (elegida) onChange(elegida.id);
+    }
   }), /*#__PURE__*/React.createElement("div", {
     className: "lf-fijo-cat-labels"
-  }, CATEGORIAS.map((c, i) => /*#__PURE__*/React.createElement("button", {
+  }, cats.map((c, i) => /*#__PURE__*/React.createElement("button", {
     key: c.id,
     type: "button",
     className: "lf-fijo-cat-label" + (i === idx ? " on" : ""),
     style: {
-      "--accent": `var(${c.cssVar})`
+      "--accent": c.color
     },
     onClick: () => onChange(c.id),
     title: c.label
-  }, /*#__PURE__*/React.createElement(c.Icon, {
+  }, /*#__PURE__*/React.createElement(iconoDe(c.icon), {
     size: 12
   })))));
 }
@@ -116,9 +123,10 @@ export function EtiquetasTarjetaPicker({
   onSeleccionar,
   onGuardarEtiquetas,
   categoriaActual,
+  categorias,
   accentVar
 }) {
-  const categoriaActualLabel = (CATEGORIAS.find(c => c.id === categoriaActual) || {}).label || "";
+  const categoriaActualLabel = categoriaDe(categorias, categoriaActual).label;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(etiquetas);
   useEffect(() => {
@@ -203,6 +211,7 @@ export function TarjetasHogarSection({
   list,
   month,
   split,
+  categorias,
   onCargar,
   onBorrar,
   onEditar,
@@ -214,12 +223,16 @@ export function TarjetasHogarSection({
   const [form, setForm] = useState({
     descripcion: "",
     monto: "",
-    categoria: "necesidades",
+    categoria: (categorias && categorias[0] && categorias[0].id) || null,
     cuotas: 1
   });
   const [busy, setBusy] = useState(false);
   const [revisando, setRevisando] = useState(null);
   const [reparando, setReparando] = useState(false);
+  // Antes el tacho de un consumo borraba directo, sin avisar — a diferencia
+  // de Movimientos, que sí pide confirmar. Mismo patrón acá: primer toque
+  // pide confirmar (✓/✗), segundo toque en el ✓ recién borra.
+  const [confirmandoBorradoId, setConfirmandoBorradoId] = useState(null);
   async function reparar() {
     setReparando(true);
     await onReparar();
@@ -245,7 +258,7 @@ export function TarjetasHogarSection({
     setForm({
       descripcion: "",
       monto: "",
-      categoria: "necesidades",
+      categoria: (categorias && categorias[0] && categorias[0].id) || null,
       cuotas: 1
     });
   }
@@ -356,7 +369,7 @@ export function TarjetasHogarSection({
   }, "Sin consumos de tarjeta del hogar activos este mes.") : /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjetas-list"
   }, activas.map(p => {
-    const cat = CATEGORIAS.find(c => c.id === p.categoria) || CATEGORIAS[0];
+    const cat = categoriaDe(categorias, p.categoria);
     const idx = monthDiff(p.mesInicio, month);
     const tieneFallidos = (p.mesesFallidos || []).length > 0;
     const parteDiego = Math.round(p.montoCuota * (Number(split.diego) || 0) / 100 * 100) / 100;
@@ -366,10 +379,10 @@ export function TarjetasHogarSection({
       key: p.id
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-tarjeta-item"
-    }, /*#__PURE__*/React.createElement(cat.Icon, {
+    }, /*#__PURE__*/React.createElement(iconoDe(cat.icon), {
       size: 12,
       style: {
-        color: `var(${cat.cssVar})`
+        color: cat.color
       }
     }), /*#__PURE__*/React.createElement("div", {
       className: "lf-tarjeta-item-text"
@@ -380,7 +393,7 @@ export function TarjetasHogarSection({
     }, /*#__PURE__*/React.createElement("span", {
       className: "lf-tarjeta-item-cat",
       style: {
-        color: `var(${cat.cssVar})`
+        color: cat.color
       }
     }, cat.label), " · ", p.cuotasTotal > 1 ? `Cuota ${idx + 1}/${p.cuotasTotal}` : "Consumo único"), /*#__PURE__*/React.createElement("span", {
       className: "lf-tarjeta-item-split"
@@ -406,9 +419,23 @@ export function TarjetasHogarSection({
       "aria-label": "Editar consumo"
     }, /*#__PURE__*/React.createElement(Pencil, {
       size: 12
-    })), /*#__PURE__*/React.createElement("button", {
-      className: "lf-fijo-del",
+    })), confirmandoBorradoId === p.id ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+      className: "lf-entry-del-confirm-yes",
       onClick: () => onBorrar(p),
+      "aria-label": "Confirmar: eliminar consumo",
+      title: "Sí, eliminar"
+    }, /*#__PURE__*/React.createElement(Check, {
+      size: 12
+    })), /*#__PURE__*/React.createElement("button", {
+      className: "lf-entry-del-confirm-no",
+      onClick: () => setConfirmandoBorradoId(null),
+      "aria-label": "Cancelar",
+      title: "Cancelar"
+    }, /*#__PURE__*/React.createElement(X, {
+      size: 12
+    }))) : /*#__PURE__*/React.createElement("button", {
+      className: "lf-fijo-del",
+      onClick: () => setConfirmandoBorradoId(p.id),
       "aria-label": "Eliminar consumo"
     }, /*#__PURE__*/React.createElement(Trash2, {
       size: 13
@@ -427,6 +454,7 @@ export function TarjetasSection({
   accentVar,
   list,
   month,
+  categorias,
   onCargar,
   onBorrar,
   onEditar,
@@ -438,11 +466,14 @@ export function TarjetasSection({
   const [form, setForm] = useState({
     descripcion: "",
     monto: "",
-    categoria: "necesidades",
+    categoria: (categorias && categorias[0] && categorias[0].id) || null,
     cuotas: 1
   });
   const [busy, setBusy] = useState(false);
   const [revisando, setRevisando] = useState(null);
+  // Mismo patrón que en Movimientos y en Tarjetas del hogar: primer toque
+  // del tacho pide confirmar (✓/✗), no borra directo.
+  const [confirmandoBorradoId, setConfirmandoBorradoId] = useState(null);
   const activas = list.filter(p => {
     const idx = monthDiff(p.mesInicio, month);
     return idx >= 0 && idx < p.cuotasTotal;
@@ -463,7 +494,7 @@ export function TarjetasSection({
     setForm({
       descripcion: "",
       monto: "",
-      categoria: "necesidades",
+      categoria: (categorias && categorias[0] && categorias[0].id) || null,
       cuotas: 1
     });
   }
@@ -564,7 +595,7 @@ export function TarjetasSection({
   }, "Sin consumos de tarjeta activos este mes.") : /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjetas-list"
   }, activas.map(p => {
-    const cat = CATEGORIAS.find(c => c.id === p.categoria) || CATEGORIAS[0];
+    const cat = categoriaDe(categorias, p.categoria);
     const idx = monthDiff(p.mesInicio, month);
     const tieneFallidos = (p.mesesFallidos || []).length > 0;
     return /*#__PURE__*/React.createElement("div", {
@@ -572,10 +603,10 @@ export function TarjetasSection({
       key: p.id
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-tarjeta-item"
-    }, /*#__PURE__*/React.createElement(cat.Icon, {
+    }, /*#__PURE__*/React.createElement(iconoDe(cat.icon), {
       size: 12,
       style: {
-        color: `var(${cat.cssVar})`
+        color: cat.color
       }
     }), /*#__PURE__*/React.createElement("div", {
       className: "lf-tarjeta-item-text"
@@ -586,7 +617,7 @@ export function TarjetasSection({
     }, /*#__PURE__*/React.createElement("span", {
       className: "lf-tarjeta-item-cat",
       style: {
-        color: `var(${cat.cssVar})`
+        color: cat.color
       }
     }, cat.label), " · ", p.cuotasTotal > 1 ? `Cuota ${idx + 1}/${p.cuotasTotal} · ${fmt(p.montoCuota)}` : fmt(p.montoCuota))), !readOnly && /*#__PURE__*/React.createElement("button", {
       className: "lf-tarjeta-icon-btn",
@@ -602,13 +633,27 @@ export function TarjetasSection({
       "aria-label": "Editar consumo"
     }, /*#__PURE__*/React.createElement(Pencil, {
       size: 12
-    })), !readOnly && /*#__PURE__*/React.createElement("button", {
-      className: "lf-fijo-del",
+    })), !readOnly && (confirmandoBorradoId === p.id ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+      className: "lf-entry-del-confirm-yes",
       onClick: () => onBorrar(p),
+      "aria-label": "Confirmar: eliminar consumo",
+      title: "Sí, eliminar"
+    }, /*#__PURE__*/React.createElement(Check, {
+      size: 12
+    })), /*#__PURE__*/React.createElement("button", {
+      className: "lf-entry-del-confirm-no",
+      onClick: () => setConfirmandoBorradoId(null),
+      "aria-label": "Cancelar",
+      title: "Cancelar"
+    }, /*#__PURE__*/React.createElement(X, {
+      size: 12
+    }))) : /*#__PURE__*/React.createElement("button", {
+      className: "lf-fijo-del",
+      onClick: () => setConfirmandoBorradoId(p.id),
       "aria-label": "Eliminar consumo"
     }, /*#__PURE__*/React.createElement(Trash2, {
       size: 13
-    }))), tieneFallidos && /*#__PURE__*/React.createElement("p", {
+    })))), tieneFallidos && /*#__PURE__*/React.createElement("p", {
       className: "lf-tarjeta-warn"
     }, "Faltan ", p.mesesFallidos.length, " cuota(s) por guardar (", p.mesesFallidos.map(monthLabel).join(", "), "). Tocá ", /*#__PURE__*/React.createElement(RefreshCw, {
       size: 10,
@@ -623,6 +668,7 @@ export function FijosSection({
   accentVar,
   list,
   pendientes,
+  categorias,
   onSave,
   onCargar,
   cotizacionDolar,
@@ -638,7 +684,7 @@ export function FijosSection({
       id: `fijo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       nombre: "",
       monto: "",
-      categoria: "necesidades",
+      categoria: (categorias && categorias[0] && categorias[0].id) || null,
       moneda: "ARS"
     }]);
   }
@@ -748,14 +794,14 @@ export function FijosSection({
   }, "Todavía no cargaste gastos fijos.") : /*#__PURE__*/React.createElement("div", {
     className: "lf-fijos-list"
   }, list.map(f => {
-    const cat = CATEGORIAS.find(c => c.id === f.categoria) || CATEGORIAS[0];
+    const cat = categoriaDe(categorias, f.categoria);
     return /*#__PURE__*/React.createElement("div", {
       className: "lf-fijo-item",
       key: f.id
-    }, /*#__PURE__*/React.createElement(cat.Icon, {
+    }, /*#__PURE__*/React.createElement(iconoDe(cat.icon), {
       size: 12,
       style: {
-        color: `var(${cat.cssVar})`
+        color: cat.color
       }
     }), /*#__PURE__*/React.createElement("span", {
       className: "lf-fijo-item-name"
@@ -775,13 +821,14 @@ export function RowEntry({
   entry,
   onTogglePagado,
   onRemove,
-  readOnly
+  readOnly,
+  categorias
 }) {
   // Antes borraba directo al tocar el tacho — un toque de más y perdías el
   // movimiento sin aviso. Ahora el primer toque solo pide confirmar (mismo
   // patrón que "Reiniciar mes"): un segundo toque en el ✓ recién borra.
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false);
-  const cat = CATEGORIAS.find(c => c.id === entry.categoria);
+  const cat = entry.categoria ? categoriaDe(categorias, entry.categoria) : null;
   const esFijo = Boolean(entry.fijoId || entry.hogarId || entry.tarjetaId || entry.esTarjeta);
   const pendienteTarjeta = (entry.esTarjeta || entry.tarjetaId) && !entry.pagado;
   const esCredito = entry.tipo === "gasto" && Number(entry.monto) < 0;

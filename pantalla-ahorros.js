@@ -1,7 +1,7 @@
 // Pantalla "Ahorros": reservas de ahorro (personales o compartidas), sus
 // totales y el detalle/edición de cada una. La llama LibroFamiliar (menu.js).
 import React, { useState, useEffect } from "react";
-import { PiggyBank, Plus, Trash2, Pencil } from "lucide-react";
+import { PiggyBank, Plus, Trash2, Pencil, Check, X } from "lucide-react";
 import { PERSONAS, fmt } from "./constants.js";
 
 export function AhorrosSection({
@@ -18,6 +18,11 @@ export function AhorrosSection({
   const [movMonto, setMovMonto] = useState("");
   const [movNota, setMovNota] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  // El tacho de un movimiento de reserva borraba directo, sin avisar — a
+  // diferencia de "Borrar reserva" (unas líneas más abajo) que ya pedía
+  // confirmar. Mismo patrón que Movimientos/Tarjetas: primer toque pide
+  // confirmar (✓/✗).
+  const [confirmDeleteMovId, setConfirmDeleteMovId] = useState(null);
   const [editingReserva, setEditingReserva] = useState(false);
   const [editNombre, setEditNombre] = useState("");
   const [editScope, setEditScope] = useState("diego");
@@ -217,9 +222,26 @@ export function AhorrosSection({
     className: "lf-num " + (m.monto >= 0 ? "lf-pos" : "lf-neg")
   }, fmt(m.monto)), e("span", {
     className: "lf-reserva-mov-nota"
-  }, m.nota || "—"), e("button", {
+  }, m.nota || "—"), confirmDeleteMovId === m.id ? e(React.Fragment, null, e("button", {
+    className: "lf-entry-del-confirm-yes",
+    onClick: () => {
+      borrarMovimiento(seleccionada.id, m.id);
+      setConfirmDeleteMovId(null);
+    },
+    "aria-label": "Confirmar: borrar movimiento",
+    title: "Sí, borrar"
+  }, e(Check, {
+    size: 12
+  })), e("button", {
+    className: "lf-entry-del-confirm-no",
+    onClick: () => setConfirmDeleteMovId(null),
+    "aria-label": "Cancelar",
+    title: "Cancelar"
+  }, e(X, {
+    size: 12
+  }))) : e("button", {
     className: "lf-mini-del",
-    onClick: () => borrarMovimiento(seleccionada.id, m.id),
+    onClick: () => setConfirmDeleteMovId(m.id),
     title: "Borrar movimiento"
   }, e(Trash2, {
     size: 12

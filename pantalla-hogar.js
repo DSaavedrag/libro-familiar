@@ -3,13 +3,21 @@
 // LibroFamiliar (menu.js).
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Pencil, Check } from "lucide-react";
-import { CATEGORIAS, fmt } from "./constants.js";
+import { fmt, categoriaDe, iconoDe } from "./constants.js";
 import { CategoryDots, TarjetasHogarSection } from "./components.js";
 
+// Nota sobre categorías acá: desde que cada jugador arma sus propias
+// agrupaciones, ya no hay un "CATEGORIAS" único y fijo para clasificar los
+// gastos del hogar (que son compartidos, no de una persona sola). Esta
+// pantalla usa las agrupaciones del jugador que está mirándola en ese momento
+// (`categorias`, que le pasa menu.js) — así cada uno clasifica lo del hogar
+// con sus propias categorías. Si el otro jugador borró/renombró esa
+// categoría, se ve "Sin categoría" en vez de romper.
 export function HogarSection({
   list,
   split,
   entries,
+  categorias,
   onSaveAll,
   onCargar,
   cotizacionDolar,
@@ -38,7 +46,7 @@ export function HogarSection({
       id: `hogar-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       nombre: "",
       monto: "",
-      categoria: "necesidades"
+      categoria: (categorias && categorias[0] && categorias[0].id) || null
     }]);
   }
   function updateRow(id, patch) {
@@ -150,6 +158,7 @@ export function HogarSection({
     size: 14
   }))), /*#__PURE__*/React.createElement(CategoryDots, {
     value: f.categoria,
+    categorias: categorias,
     onChange: cat => updateRow(f.id, {
       categoria: cat
     })
@@ -163,7 +172,7 @@ export function HogarSection({
   }, "Todavía no cargaste gastos fijos del hogar.") : /*#__PURE__*/React.createElement("div", {
     className: "lf-fijos-list"
   }, list.map(f => {
-    const cat = CATEGORIAS.find(c => c.id === f.categoria) || CATEGORIAS[0];
+    const cat = categoriaDe(categorias, f.categoria);
     const partDiego = (Number(f.monto) || 0) * (Number(split.diego) || 0) / 100;
     const partYani = (Number(f.monto) || 0) * (Number(split.yani) || 0) / 100;
     return /*#__PURE__*/React.createElement("div", {
@@ -171,10 +180,10 @@ export function HogarSection({
       key: f.id
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-fijo-item"
-    }, /*#__PURE__*/React.createElement(cat.Icon, {
+    }, /*#__PURE__*/React.createElement(iconoDe(cat.icon), {
       size: 12,
       style: {
-        color: `var(${cat.cssVar})`
+        color: cat.color
       }
     }), /*#__PURE__*/React.createElement("span", {
       className: "lf-fijo-item-name"
@@ -199,6 +208,7 @@ export function HogarSection({
     list: tarjetasHogar,
     month: month,
     split: split,
+    categorias: categorias,
     onCargar: onCargarTarjetaHogar,
     onBorrar: onBorrarTarjetaHogar,
     onEditar: onEditarTarjetaHogar,

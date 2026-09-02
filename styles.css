@@ -1297,6 +1297,7 @@
         cursor: pointer;
       }
       .lf-fijo-add:hover { background: rgba(255,255,255,0.5); }
+      .lf-col-mini-track {
         flex-basis: 100%;
         height: 4px;
         background: rgba(35,48,59,0.08);
@@ -1621,7 +1622,23 @@
            como siempre (ver reglas de .lf-swipe-container/.lf-swipe-page fuera de este @media). */
         .lf-swipe-container {
           display: flex;
+          align-items: flex-start;
           overflow-x: auto;
+          /* OJO: "overflow-y: visible" NO sirve acá — el navegador lo fuerza a
+             "auto" apenas overflow-x no es "visible" (regla de la spec de CSS,
+             no depende de si hay o no contenido que desborde). Se probó
+             "hidden" para evitar ese scroll interno, pero eso ROMPIÓ un montón
+             de funcionalidad (Parametrizar, tachos, desplegar tarjetas/detalle
+             de categoría): cualquier contenido que crece de golpe (un
+             desplegable, un formulario que aparece) queda directamente
+             INVISIBLE E INALCANZABLE hasta que el JS de abajo recalcula la
+             altura — con "hidden" ese instante de desfasaje corta el contenido
+             en vez de solo generar un scroll molesto. Por eso quedó en "auto":
+             mismo comportamiento que el navegador ya forzaba antes, pero
+             degrada mejor (scrolleable un instante en vez de invisible). El
+             `el.scrollTop = 0` del useEffect de "altura del carrusel" en
+             menu.js es el que evita que ese scroll interno quede atascado. */
+          overflow-y: auto;
           scroll-snap-type: x mandatory;
           -webkit-overflow-scrolling: touch;
           scroll-behavior: smooth;
@@ -1654,11 +1671,13 @@
         .lf-fijos-list, .lf-tarjetas-list, .lf-col-list { grid-template-columns: 1fr; }
 
         /* Movimientos ahora vive solo en su propia pantalla (ver .lf-swipe-page
-           más arriba) — ya no comparte espacio con Fijos y Tarjetas, así que en
-           vez de la cajita chica de siempre (220px, pensada para cuando estaba
-           apretada entre otras dos secciones) usa la mayor parte de la pantalla
-           disponible. Pedido explícito de Diego: "ahora tiene más espacio". */
-        .lf-col-list { max-height: 68vh; }
+           más arriba). Al principio se le puso una altura fija con su propia
+           barra de scroll interna (68vh) para aprovechar el espacio — pero eso
+           generaba una barra de desplazamiento adentro de la otra (la de la
+           pantalla), molesto para usar. Pedido explícito de Diego: sacar esa
+           cajita y dejar que la lista crezca entera, con una sola barra de
+           scroll (la de la pantalla, vertical, la de siempre). */
+        .lf-col-list { max-height: none; overflow-y: visible; }
 
         /* Que ningún monto se salga de su tarjeta: puede achicarse o pasar a la línea siguiente */
         .lf-num, .lf-col-cat-num, .lf-col-cat-restante, .lf-entry-amt,
@@ -1716,4 +1735,116 @@
         .lf-tarjeta-form-row { flex-wrap: wrap; }
         .lf-tarjeta-monto { flex-basis: 100%; }
         .lf-tarjeta-submit { padding: 12px; }
+      }
+
+      /* --- Agrupaciones personalizables (editor dentro de "Mi cuenta", tarjeta
+         oscura) y desglose por persona en "Vista grupal" --------------------- */
+      .lf-col-head-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+      .lf-agrup-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 14px;
+        padding: 12px;
+        background: rgba(237,230,214,0.06);
+        border: 1px solid rgba(237,230,214,0.18);
+        border-radius: 10px;
+      }
+      .lf-agrup-hint {
+        margin: 0;
+        font-size: 11.5px;
+        line-height: 1.4;
+        color: var(--accent-on-dark, var(--paper));
+        opacity: 0.75;
+      }
+      .lf-agrup-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .lf-agrup-icon-current {
+        flex: none;
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        border: 1.5px solid var(--accent);
+        background: transparent;
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .lf-agrup-icon-current:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+      .lf-agrup-nombre { flex: 1; min-width: 90px; font-size: 12.5px; padding: 7px 9px; }
+      .lf-agrup-color-input {
+        flex: none;
+        width: 32px;
+        height: 32px;
+        padding: 2px;
+        border: 1px solid rgba(237,230,214,0.35);
+        border-radius: 7px;
+        background: transparent;
+        cursor: pointer;
+      }
+      .lf-agrup-color-input::-webkit-color-swatch-wrapper { padding: 1px; }
+      .lf-agrup-color-input::-webkit-color-swatch { border: none; border-radius: 4px; }
+      .lf-agrup-color-input::-moz-color-swatch { border: none; border-radius: 4px; }
+      .lf-agrup-icon-grid {
+        flex-basis: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 8px;
+        background: rgba(0,0,0,0.15);
+        border-radius: 8px;
+      }
+      .lf-agrup-icon-opt {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--paper);
+        opacity: 0.6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .lf-agrup-icon-opt:hover { opacity: 0.9; background: rgba(237,230,214,0.12); }
+      .lf-agrup-icon-opt.on {
+        opacity: 1;
+        border-color: var(--paper);
+        background: rgba(237,230,214,0.18);
+      }
+      .lf-agrup-actions { display: flex; gap: 8px; }
+      .lf-agrup-cancel {
+        background: transparent;
+        border: 1px solid rgba(237,230,214,0.35);
+        color: var(--paper);
+        border-radius: 8px;
+        padding: 9px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .lf-agrup-cancel:hover { background: rgba(237,230,214,0.1); }
+
+      .lf-familiar-persona { margin-bottom: 14px; }
+      .lf-familiar-persona:last-child { margin-bottom: 0; }
+      .lf-familiar-sub {
+        font-family: 'Roboto Slab', serif;
+        font-size: 13px;
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+
+      @media (max-width: 640px) {
+        .lf-agrup-nombre { min-width: 70px; }
+        .lf-agrup-icon-current, .lf-agrup-color-input { width: 34px; height: 34px; }
+        .lf-agrup-icon-opt { width: 32px; height: 32px; }
       }

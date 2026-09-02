@@ -12,13 +12,15 @@
 // la idea es ir sacando, de a poco, más bloques de lógica de este archivo.
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp, LogOut } from "lucide-react";
-import { CATEGORIAS, PERSONAS, fmt, PCT_DEFAULT, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
+import { PERSONAS, fmt, CATEGORIAS_DEFAULT, pctPorDefecto, iconoDe, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
 import { storageSetRetry, fetchCotizacionLive, arrayAMapaPorId, mapaAArray } from "./storage.js";
 import { Shell, EtiquetasTarjetaPicker, CotizacionWidget } from "./components.js";
 import { PersonColumn } from "./pantalla-mi-cuenta.js";
 import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
 import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
+import { montoArsDeFijo, entriesActualizadasPorFijos, entriesActualizadasPorHogar, armarEntriesFijosFaltantes, armarEntriesHogarFaltantes } from "./logica-fijos.js";
+import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada } from "./logica-movimientos.js";
 import { entrarOCrearCuenta, suscribirseASesion, cerrarSesion, buscarJugadorPorUid, obtenerJugadoresVinculados, vincularJugadorPropio } from "./auth.js";
 
 export function LibroFamiliar() {
@@ -69,28 +71,59 @@ export function LibroFamiliar() {
   // se activa porque no hay overflow-x que arrastrar.
   const swipeRef = useRef(null);
   const swipeDrag = useRef({
+    // "posible": el botón está apretado pero todavía no sabemos si es un
+    // click o el inicio de un arrastre. "arrastrando": ya se confirmó que es
+    // un arrastre (se movió lo suficiente) y ahí recién capturamos el
+    // puntero. Antes esto capturaba el puntero apenas se apretaba el botón
+    // del mouse, sin esperar ningún movimiento — eso hacía que el navegador
+    // le mandara TODO el gesto al contenedor en vez de al botón que se tocó,
+    // y como el pointerup nunca "cerraba" sobre el botón original, ningún
+    // click adentro del carrusel funcionaba (Parametrizar, tachos,
+    // desplegables, etc. — un desastre). Ahora un simple click (sin mover el
+    // mouse) nunca dispara la captura, así que llega normal al botón.
+    posible: false,
     arrastrando: false,
     xInicial: 0,
-    scrollInicial: 0
+    yInicial: 0,
+    scrollInicial: 0,
+    pointerId: null
   });
   function handleSwipePointerDown(e) {
     if (e.pointerType === "touch") return;
     const el = swipeRef.current;
     if (!el) return;
     swipeDrag.current = {
-      arrastrando: true,
+      posible: true,
+      arrastrando: false,
       xInicial: e.clientX,
-      scrollInicial: el.scrollLeft
+      yInicial: e.clientY,
+      scrollInicial: el.scrollLeft,
+      pointerId: e.pointerId
     };
-    el.setPointerCapture(e.pointerId);
   }
   function handleSwipePointerMove(e) {
-    if (!swipeDrag.current.arrastrando) return;
+    const d = swipeDrag.current;
+    if (!d.posible && !d.arrastrando) return;
     const el = swipeRef.current;
     if (!el) return;
-    el.scrollLeft = swipeDrag.current.scrollInicial - (e.clientX - swipeDrag.current.xInicial);
+    const dx = e.clientX - d.xInicial;
+    if (!d.arrastrando) {
+      const dy = e.clientY - d.yInicial;
+      // Todavía no se movió lo suficiente para saber si es un click o un
+      // arrastre — esperamos. Si el movimiento es más vertical que horizontal,
+      // no lo tomamos como swipe (para no robarle un scroll con mouse/trackpad).
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        d.posible = false;
+        return;
+      }
+      d.arrastrando = true;
+      el.setPointerCapture(d.pointerId);
+    }
+    el.scrollLeft = d.scrollInicial - dx;
   }
   function handleSwipePointerUp() {
+    swipeDrag.current.posible = false;
     swipeDrag.current.arrastrando = false;
   }
   useEffect(() => {
@@ -167,12 +200,24 @@ export function LibroFamiliar() {
     setPasswordForm("");
   }
   const [entries, setEntries] = useState([]);
+  // Agrupaciones (Ahorros/Necesidades/Liah/Placeres, o lo que cada uno arme):
+  // totalmente personalizables, cada jugador tiene la suya propia guardada en
+  // Firebase bajo `agrupaciones:{person}` — no hay ninguna fija en el código,
+  // CATEGORIAS_DEFAULT solo se usa para "sembrar" a un jugador la primera vez
+  // que entra (ver el useEffect de carga más abajo). Arranca en `null` (no
+  // `[]`) para poder distinguir "todavía no se cargó de Firebase" de
+  // "se cargó y este jugador se quedó sin ninguna agrupación" (caso que ni
+  // debería poder pasar, AgrupacionesEditor no deja borrar la última).
+  const [agrupaciones, setAgrupaciones] = useState({
+    diego: null,
+    yani: null
+  });
   const [settings, setSettings] = useState({
     diego: {
-      pct: PCT_DEFAULT
+      pct: pctPorDefecto(CATEGORIAS_DEFAULT)
     },
     yani: {
-      pct: PCT_DEFAULT
+      pct: pctPorDefecto(CATEGORIAS_DEFAULT)
     }
   });
   const [fijos, setFijos] = useState({
@@ -201,7 +246,7 @@ export function LibroFamiliar() {
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [form, setForm] = useState({
     tipo: "gasto",
-    categoria: "necesidades",
+    categoria: null,
     monto: "",
     descripcion: "",
     esTarjeta: false,
@@ -210,6 +255,19 @@ export function LibroFamiliar() {
     etiquetaId: null,
     tarjetaCuotas: 1
   });
+  // Si la categoría elegida en el formulario ya no existe en las agrupaciones
+  // del jugador activo (todavía no cargaron de Firebase, o la borró/renombró
+  // desde el editor de agrupaciones), la reemplaza por la primera disponible.
+  useEffect(() => {
+    const propias = (activePerson && agrupaciones[activePerson]) || [];
+    if (propias.length === 0) return;
+    if (!propias.some(c => c.id === form.categoria)) {
+      setForm(f => ({
+        ...f,
+        categoria: propias[0].id
+      }));
+    }
+  }, [activePerson, agrupaciones]);
   const load = useCallback(async m => {
     setLoading(true);
     setErrorMsg("");
@@ -223,10 +281,10 @@ export function LibroFamiliar() {
       }
       const defaultSett = {
         diego: {
-          pct: PCT_DEFAULT
+          pct: pctPorDefecto(agrupaciones.diego)
         },
         yani: {
-          pct: PCT_DEFAULT
+          pct: pctPorDefecto(agrupaciones.yani)
         }
       };
       let sett = defaultSett;
@@ -252,10 +310,62 @@ export function LibroFamiliar() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [agrupaciones]);
   useEffect(() => {
     load(month);
   }, [month, load]);
+
+  // Cada pantalla del carrusel (Resumen, Tarjetas, Movimientos, Grupo) puede
+  // tener una altura de contenido distinta, y como el carrusel es un flex
+  // row, el contenedor por default toma la altura de la pantalla MÁS ALTA
+  // (Movimientos, que ahora crece libre) — eso deja espacio en blanco abajo
+  // en las pantallas más cortas. Para evitarlo, medimos la altura real de la
+  // pantalla actualmente visible y se la aplicamos como altura fija al
+  // contenedor, así el resto del documento no reserva espacio de más. Solo
+  // aplica en mobile (max-width: 640px, el mismo breakpoint del swipe); en
+  // desktop se limpia cualquier altura inline para que quede en "auto" como
+  // siempre.
+  useEffect(() => {
+    const el = swipeRef.current;
+    if (!el) return;
+    const mq = window.matchMedia("(max-width: 640px)");
+    function ajustarAlturaSwipe() {
+      if (!mq.matches) {
+        el.style.height = "";
+        return;
+      }
+      const ancho = el.clientWidth || 1;
+      const idx = Math.max(0, Math.min(el.children.length - 1, Math.round(el.scrollLeft / ancho)));
+      const pagina = el.children[idx];
+      if (pagina) {
+        el.style.height = pagina.scrollHeight + "px";
+      }
+      // Por más que el CSS ya use "overflow-y: hidden" (no "auto") para que el
+      // navegador no arme un scroll vertical propio acá adentro, esto es un
+      // resguardo extra: si por algún desfasaje momentáneo de altura llegara a
+      // moverse el scroll interno de este contenedor, lo volvemos a 0 — todo
+      // el scroll vertical tiene que ser siempre el de la página, nunca el de
+      // este contenedor.
+      if (el.scrollTop !== 0) el.scrollTop = 0;
+    }
+    ajustarAlturaSwipe();
+    el.addEventListener("scroll", ajustarAlturaSwipe, {
+      passive: true
+    });
+    window.addEventListener("resize", ajustarAlturaSwipe);
+    if (mq.addEventListener) mq.addEventListener("change", ajustarAlturaSwipe);else mq.addListener(ajustarAlturaSwipe);
+    let ro = null;
+    if (window.ResizeObserver) {
+      ro = new ResizeObserver(ajustarAlturaSwipe);
+      Array.from(el.children).forEach(hijo => ro.observe(hijo));
+    }
+    return () => {
+      el.removeEventListener("scroll", ajustarAlturaSwipe);
+      window.removeEventListener("resize", ajustarAlturaSwipe);
+      if (mq.removeEventListener) mq.removeEventListener("change", ajustarAlturaSwipe);else mq.removeListener(ajustarAlturaSwipe);
+      if (ro) ro.disconnect();
+    };
+  }, [viewingPerson, activeTab, entries, fijos, fijosHogar, tarjetas, tarjetasHogar, etiquetasTarjeta, reservas]);
 
   // Refresco silencioso: cada 25s, si la pantalla está visible, trae los movimientos
   // guardados por el otro (sin mostrar el loader ni interrumpir lo que estás escribiendo).
@@ -284,6 +394,29 @@ export function LibroFamiliar() {
   }, [month, refreshEntriesSilent]);
   useEffect(() => {
     (async () => {
+      // Agrupaciones de cada jugador. Si todavía no tiene ninguna guardada
+      // (primera vez que entra), se la "siembra" con el set original de
+      // siempre (Ahorros/Necesidades/Liah/Placeres) y se guarda esa semilla
+      // en Firebase — mismo patrón que ETIQUETAS_TARJETA_DEFAULT más abajo.
+      const nextAgrupaciones = {
+        diego: null,
+        yani: null
+      };
+      for (const pid of ["diego", "yani"]) {
+        try {
+          const r = await window.storage.get(`agrupaciones:${pid}`, true);
+          if (r) {
+            const parsed = JSON.parse(r.value);
+            nextAgrupaciones[pid] = Array.isArray(parsed) && parsed.length > 0 ? parsed : CATEGORIAS_DEFAULT;
+          } else {
+            nextAgrupaciones[pid] = CATEGORIAS_DEFAULT;
+            await storageSetRetry(`agrupaciones:${pid}`, JSON.stringify(CATEGORIAS_DEFAULT), true);
+          }
+        } catch {
+          nextAgrupaciones[pid] = CATEGORIAS_DEFAULT;
+        }
+      }
+      setAgrupaciones(nextAgrupaciones);
       const next = {
         diego: [],
         yani: []
@@ -393,12 +526,33 @@ export function LibroFamiliar() {
     const res = await storageSetRetry(`settings:${month}`, JSON.stringify(next), true);
     if (!res) setErrorMsg("No se pudo guardar la parametrización. Probá de nuevo.");
   }
-  function montoArsDeFijo(item) {
-    if (item.moneda === "USD") {
-      return Math.round((Number(item.monto) || 0) * (Number(cotizacionDolar) || 0) * 100) / 100;
+  // Guarda la lista de agrupaciones de un jugador (Ahorros/Necesidades/Liah/
+  // Placeres, o lo que haya armado). No migra ni toca movimientos ya
+  // cargados con una categoría que se borró o renombró — ver la nota en
+  // AgrupacionesEditor (pantalla-mi-cuenta.js) sobre por qué eso es
+  // intencional. Sí limpia, dentro de la parametrización guardada de este
+  // mes, los porcentajes de categorías que ya no existen (para que "Total: X%"
+  // no arrastre un número fantasma de una categoría borrada).
+  async function saveAgrupacionesFor(personId, list) {
+    setAgrupaciones(prev => ({
+      ...prev,
+      [personId]: list
+    }));
+    const res = await storageSetRetry(`agrupaciones:${personId}`, JSON.stringify(list), true);
+    if (!res) {
+      setErrorMsg("No se pudieron guardar las agrupaciones. Probá de nuevo.");
+      return;
     }
-    return Number(item.monto) || 0;
+    const idsVigentes = new Set(list.map(c => c.id));
+    const pctViejo = (settings[personId] && settings[personId].pct) || {};
+    const pctLimpio = Object.fromEntries(Object.entries(pctViejo).filter(([id]) => idsVigentes.has(id)));
+    await saveSettingsFor(personId, {
+      ...settings[personId],
+      pct: pctLimpio
+    });
   }
+  // El cálculo del monto en pesos de un fijo, y la lógica de qué movimientos
+  // hay que actualizar cuando se edita la lista, viven en logica-fijos.js.
   async function saveFijosFor(personId, list) {
     setFijos(prev => ({
       ...prev,
@@ -409,25 +563,8 @@ export function LibroFamiliar() {
       setErrorMsg("No se pudo guardar los gastos fijos. Probá de nuevo.");
       return;
     }
-    // Si alguno de estos fijos ya está cargado este mes, actualizamos el movimiento con los valores nuevos.
-    let changed = false;
-    const nextEntries = entries.map(e => {
-      if (!e.fijoId) return e;
-      const item = list.find(f => f.id === e.fijoId);
-      if (!item) return e;
-      changed = true;
-      return {
-        ...e,
-        monto: montoArsDeFijo(item),
-        categoria: item.categoria,
-        descripcion: item.nombre || e.descripcion,
-        montoUSD: item.moneda === "USD" ? Number(item.monto) || 0 : undefined,
-        cotizacionUsada: item.moneda === "USD" ? Number(cotizacionDolar) || 0 : undefined,
-        esTarjeta: Boolean(item.esTarjeta),
-        pagado: item.esTarjeta ? e.pagado ?? false : e.pagado
-      };
-    });
-    if (changed) await persistEntries(nextEntries);
+    const nextEntries = entriesActualizadasPorFijos(entries, list, cotizacionDolar);
+    if (nextEntries) await persistEntries(nextEntries);
   }
   async function saveHogarConfig(list, diegoPct) {
     const newSplit = {
@@ -442,22 +579,8 @@ export function LibroFamiliar() {
       setErrorMsg("No se pudo guardar el hogar. Probá de nuevo.");
       return;
     }
-    // Igual que con los fijos personales: si ya están cargados este mes, actualizamos esos movimientos.
-    let changed = false;
-    const nextEntries = entries.map(e => {
-      if (!e.hogarId) return e;
-      const item = list.find(f => f.id === e.hogarId);
-      if (!item) return e;
-      changed = true;
-      const pct = Number(newSplit[e.person]) || 0;
-      return {
-        ...e,
-        categoria: item.categoria,
-        monto: Math.round((Number(item.monto) || 0) * pct / 100 * 100) / 100,
-        descripcion: `${item.nombre || "Gasto fijo"} (hogar)`
-      };
-    });
-    if (changed) await persistEntries(nextEntries);
+    const nextEntries = entriesActualizadasPorHogar(entries, list, newSplit);
+    if (nextEntries) await persistEntries(nextEntries);
   }
   async function saveReservas(list) {
     setReservas(list);
@@ -480,24 +603,12 @@ export function LibroFamiliar() {
     return false;
   }
   function cargarFijosHogarDelMes() {
-    const faltantes = fijosHogar.filter(f => !entries.some(e => e.hogarId === f.id));
-    if (faltantes.length === 0) return;
-    const now = Date.now();
-    const nuevas = [];
-    faltantes.forEach((f, i) => {
-      ["diego", "yani"].forEach((pid, j) => {
-        nuevas.push({
-          id: `hogar-${f.id}-${pid}-${now}-${i}-${j}`,
-          person: pid,
-          tipo: "gasto",
-          categoria: f.categoria,
-          monto: (Number(f.monto) || 0) * (Number(splitHogar[pid]) || 0) / 100,
-          descripcion: `${f.nombre || "Gasto fijo"} (hogar)`,
-          hogarId: f.id,
-          ts: now - i
-        });
-      });
+    const nuevas = armarEntriesHogarFaltantes({
+      fijosHogar,
+      entries,
+      split: splitHogar
     });
+    if (nuevas.length === 0) return;
     persistEntries([...nuevas, ...entries]);
   }
   async function saveTarjetasFor(personId, list) {
@@ -650,24 +761,16 @@ export function LibroFamiliar() {
     setErrorMsg(`Reparado: se recuperaron ${nuevosRegistros.length} consumo(s) de tarjeta del hogar que faltaban en la lista.`);
   }
 
-  // Escribe (o reemplaza si ya existe, por id) una entrada puntual en el mes que corresponda.
-  // Escribe (o reemplaza, por id) un lote de entradas en el mes que corresponda, en un solo guardado.
-  // Importante: nunca separar esto en llamadas de a una entrada cuando el mes es el actual, porque cada
-  // llamada usaría una foto vieja de `entries` y se pisarían entre sí.
+  // El detalle de cómo se escribe un lote de movimientos en un mes (actual o
+  // no) vive en logica-movimientos.js — acá solo se le pasa el estado actual.
   async function writeEntriesForMonth(mKey, newEntries) {
-    const ids = new Set(newEntries.map(e => e.id));
-    if (mKey === month) {
-      return await persistEntries([...newEntries, ...entries.filter(e => !ids.has(e.id))]);
-    }
-    let existing = [];
-    try {
-      const r = await window.storage.get(`entries:${mKey}`, true);
-      existing = r ? mapaAArray(JSON.parse(r.value)) : [];
-    } catch {
-      existing = [];
-    }
-    const res = await storageSetRetry(`entries:${mKey}`, JSON.stringify(arrayAMapaPorId([...newEntries, ...existing.filter(e => !ids.has(e.id))])), true);
-    return Boolean(res);
+    return escribirEntriesEnMes({
+      mKey,
+      newEntries,
+      month,
+      entries,
+      persistEntries
+    });
   }
   async function crearConsumoTarjetaHogar({
     descripcion,
@@ -774,32 +877,18 @@ export function LibroFamiliar() {
     } : p));
   }
   function cargarFijosDelMes(personId) {
-    const list = fijos[personId] || [];
-    const faltantes = list.filter(f => !entries.some(e => e.fijoId === f.id));
-    if (faltantes.length === 0) return;
-    const now = Date.now();
-    const nuevas = faltantes.map((f, i) => ({
-      id: `fijo-${f.id}-${now}-${i}`,
-      person: personId,
-      tipo: "gasto",
-      categoria: f.categoria,
-      monto: montoArsDeFijo(f),
-      descripcion: f.nombre || "Gasto fijo",
-      fijoId: f.id,
-      montoUSD: f.moneda === "USD" ? Number(f.monto) || 0 : undefined,
-      cotizacionUsada: f.moneda === "USD" ? Number(cotizacionDolar) || 0 : undefined,
-      esTarjeta: Boolean(f.esTarjeta),
-      pagado: f.esTarjeta ? false : undefined,
-      ts: now - i
-    }));
+    const nuevas = armarEntriesFijosFaltantes({
+      list: fijos[personId] || [],
+      entries,
+      personId,
+      cotizacionDolar
+    });
+    if (nuevas.length === 0) return;
     persistEntries([...nuevas, ...entries]);
   }
   async function addEntry() {
     if (!activePerson) return;
-    const monto = parseFloat(form.monto);
-    if (!monto || monto <= 0) return;
     const esTarjeta = form.tipo === "gasto" && form.esTarjeta;
-    const esRendimiento = form.tipo === "gasto" && !form.esTarjeta && form.esRendimiento;
     const categoria = form.tipo === "ingreso" ? null : form.categoria;
 
     // Tarjeta - consumo único (con cuotas): reusa la misma lógica que Tarjetas > Nuevo consumo.
@@ -820,27 +909,15 @@ export function LibroFamiliar() {
       });
       return;
     }
-    let descripcion = form.descripcion.trim();
 
-    // Tarjeta - agrupable: usa la etiqueta elegida (Sube, Viajes, etc.)
-    if (esTarjeta) {
-      const etiqueta = (etiquetasTarjeta[activePerson] || []).find(e => e.id === form.etiquetaId);
-      if (!etiqueta) return; // hace falta elegir una etiqueta para cargar un consumo agrupable
-      descripcion = etiqueta.nombre;
-    }
-    const entry = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      person: activePerson,
-      tipo: form.tipo,
-      categoria,
-      monto: esRendimiento ? -monto : monto,
-      descripcion,
-      esTarjeta,
-      esRendimiento,
-      etiquetaId: esTarjeta ? form.etiquetaId : undefined,
-      pagado: esTarjeta ? false : undefined,
-      ts: Date.now()
-    };
+    // Resto de los casos (ingreso, gasto suelto, o tarjeta "agrupable" con
+    // etiqueta): armar el movimiento vive en logica-movimientos.js.
+    const entry = armarMovimientoDesdeForm({
+      form,
+      activePerson,
+      etiquetasDePersona: etiquetasTarjeta[activePerson]
+    });
+    if (!entry) return;
     persistEntries([entry, ...entries]);
     setForm({
       ...form,
@@ -849,16 +926,16 @@ export function LibroFamiliar() {
     });
   }
   function removeEntry(id) {
-    persistEntries(entries.filter(e => e.id !== id));
+    persistEntries(entriesSinId(entries, id));
   }
   async function resetMonth() {
     const emptyEntries = [];
     const defaultSett = {
       diego: {
-        pct: PCT_DEFAULT
+        pct: pctPorDefecto(agrupaciones.diego)
       },
       yani: {
-        pct: PCT_DEFAULT
+        pct: pctPorDefecto(agrupaciones.yani)
       }
     };
     setEntries(emptyEntries);
@@ -869,17 +946,10 @@ export function LibroFamiliar() {
     if (!r1 || !r2) setErrorMsg("No se pudo reiniciar el mes del todo. Probá de nuevo.");
   }
   function togglePagado(id) {
-    persistEntries(entries.map(e => e.id === id ? {
-      ...e,
-      pagado: !e.pagado
-    } : e));
+    persistEntries(entriesConPagadoToggleado(entries, id));
   }
   function pagarTarjeta(person) {
-    const next = entries.map(e => e.person === person && (e.tarjetaId || e.esTarjeta) && !e.pagado ? {
-      ...e,
-      pagado: true
-    } : e);
-    persistEntries(next);
+    persistEntries(entriesConTarjetaPagada(entries, person));
   }
   function totalsFor(person) {
     const list = entries.filter(e => e.person === person);
@@ -887,7 +957,7 @@ export function LibroFamiliar() {
     const gastos = list.filter(e => e.tipo === "gasto").reduce((s, e) => s + e.monto, 0);
     const pendienteTarjeta = list.filter(e => e.tipo === "gasto" && (e.tarjetaId || e.esTarjeta) && !e.pagado).reduce((s, e) => s + e.monto, 0);
     const porCategoria = {};
-    CATEGORIAS.forEach(c => {
+    (agrupaciones[person] || []).forEach(c => {
       porCategoria[c.id] = list.filter(e => e.tipo === "gasto" && e.categoria === c.id).reduce((s, e) => s + e.monto, 0);
     });
     return {
@@ -899,19 +969,24 @@ export function LibroFamiliar() {
       pendienteTarjeta
     };
   }
-  function budgetsFor(pct, ingresos) {
-    return Object.fromEntries(CATEGORIAS.map(c => [c.id, (Number(ingresos) || 0) * (Number(pct[c.id]) || 0) / 100]));
+  function budgetsFor(pct, ingresos, categorias) {
+    return Object.fromEntries((categorias || []).map(c => [c.id, (Number(ingresos) || 0) * (Number(pct[c.id]) || 0) / 100]));
   }
   const diego = totalsFor("diego");
   const yani = totalsFor("yani");
-  const budgetsDiego = budgetsFor(settings.diego.pct, diego.ingresos);
-  const budgetsYani = budgetsFor(settings.yani.pct, yani.ingresos);
-  const budgetsFamiliar = Object.fromEntries(CATEGORIAS.map(c => [c.id, (budgetsDiego[c.id] || 0) + (budgetsYani[c.id] || 0)]));
+  const budgetsDiego = budgetsFor(settings.diego.pct, diego.ingresos, agrupaciones.diego);
+  const budgetsYani = budgetsFor(settings.yani.pct, yani.ingresos, agrupaciones.yani);
+  // Antes "Vista grupal" armaba una sola barra por categoría sumando lo de
+  // Diego y Yani, porque las dos usaban el mismo set fijo de 4 categorías.
+  // Ahora que cada uno arma las suyas (pueden no coincidir en ids ni en
+  // cantidad), ya no hay una forma correcta de "sumar" categoría con
+  // categoría entre los dos — Vista grupal muestra el desglose de cada uno
+  // por separado (ver más abajo, sección "Vista grupal"). Acá solo queda el
+  // total combinado (ingresos/gastos/saldo), que sí es válido sumarlo.
   const familiar = {
     ingresos: diego.ingresos + yani.ingresos,
     gastos: diego.gastos + yani.gastos,
-    saldo: diego.ingresos + yani.ingresos - (diego.gastos + yani.gastos),
-    porCategoria: Object.fromEntries(CATEGORIAS.map(c => [c.id, (diego.porCategoria[c.id] || 0) + (yani.porCategoria[c.id] || 0)]))
+    saldo: diego.ingresos + yani.ingresos - (diego.gastos + yani.gastos)
   };
   if (!sesionLista) {
     return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
@@ -1134,17 +1209,17 @@ export function LibroFamiliar() {
     })
   })), form.tipo === "gasto" && /*#__PURE__*/React.createElement("div", {
     className: "lf-cat-row"
-  }, CATEGORIAS.map(c => /*#__PURE__*/React.createElement("button", {
+  }, (agrupaciones[activePerson] || []).map(c => /*#__PURE__*/React.createElement("button", {
     key: c.id,
     className: "lf-cat-pill" + (form.categoria === c.id ? " on" : ""),
     style: {
-      "--accent": `var(${c.cssVar})`
+      "--accent": c.color
     },
     onClick: () => setForm({
       ...form,
       categoria: c.id
     })
-  }, /*#__PURE__*/React.createElement(c.Icon, {
+  }, /*#__PURE__*/React.createElement(iconoDe(c.icon), {
     size: 14
   }), " ", c.label))), form.tipo === "gasto" && /*#__PURE__*/React.createElement("label", {
     className: "lf-tarjeta-check"
@@ -1199,6 +1274,7 @@ export function LibroFamiliar() {
     }),
     onGuardarEtiquetas: list => saveEtiquetasTarjeta(activePerson, list),
     categoriaActual: form.categoria,
+    categorias: agrupaciones[activePerson] || [],
     accentVar: `var(${PERSONAS[activePerson].cssVar})`
   }), form.tipo === "gasto" && form.esTarjeta && form.tarjetaModo === "unico" && /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjeta-unico-row"
@@ -1261,6 +1337,8 @@ export function LibroFamiliar() {
     settings: settings.diego,
     budgets: budgetsDiego,
     onSave: s => saveSettingsFor("diego", s),
+    categorias: agrupaciones.diego || [],
+    onSaveAgrupaciones: list => saveAgrupacionesFor("diego", list),
     fijos: fijos.diego,
     onSaveFijos: list => saveFijosFor("diego", list),
     onCargarFijos: () => cargarFijosDelMes("diego"),
@@ -1281,6 +1359,8 @@ export function LibroFamiliar() {
     settings: settings.yani,
     budgets: budgetsYani,
     onSave: s => saveSettingsFor("yani", s),
+    categorias: agrupaciones.yani || [],
+    onSaveAgrupaciones: list => saveAgrupacionesFor("yani", list),
     fijos: fijos.yani,
     onSaveFijos: list => saveFijosFor("yani", list),
     onCargarFijos: () => cargarFijosDelMes("yani"),
@@ -1317,9 +1397,39 @@ export function LibroFamiliar() {
     className: "lf-num " + (familiar.saldo >= 0 ? "lf-pos" : "lf-neg")
   }, fmt(familiar.saldo)))), /*#__PURE__*/React.createElement("div", {
     className: "lf-cat-bars"
-  }, CATEGORIAS.map(c => {
-    const gastado = familiar.porCategoria[c.id] || 0;
-    const presu = budgetsFamiliar[c.id];
+  },
+  // Antes esto era una sola barra por categoría, sumando Diego + Yani —
+  // funcionaba porque los dos usaban el mismo set fijo de 4 categorías. Ahora
+  // que cada uno arma las suyas (con sus propios ids, nombres, colores),
+  // sumar "categoría con categoría" ya no tiene sentido garantizado — así que
+  // se muestra el desglose de cada uno por separado, con su propia
+  // parametrización.
+  [{
+    personId: "diego",
+    persona: diego,
+    budgetsPersona: budgetsDiego,
+    cats: agrupaciones.diego || []
+  }, {
+    personId: "yani",
+    persona: yani,
+    budgetsPersona: budgetsYani,
+    cats: agrupaciones.yani || []
+  }].map(({
+    personId,
+    persona,
+    budgetsPersona,
+    cats
+  }) => /*#__PURE__*/React.createElement("div", {
+    className: "lf-familiar-persona",
+    key: personId
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "lf-familiar-sub",
+    style: {
+      color: `var(${PERSONAS[personId].cssVar})`
+    }
+  }, PERSONAS[personId].label), cats.map(c => {
+    const gastado = persona.porCategoria[c.id] || 0;
+    const presu = budgetsPersona[c.id];
     const pct = presu > 0 ? Math.max(0, Math.min(100, gastado / presu * 100)) : 0;
     const excedido = presu > 0 && gastado > presu;
     return /*#__PURE__*/React.createElement("div", {
@@ -1327,10 +1437,10 @@ export function LibroFamiliar() {
       key: c.id
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-cat-bar-label"
-    }, /*#__PURE__*/React.createElement(c.Icon, {
+    }, /*#__PURE__*/React.createElement(iconoDe(c.icon), {
       size: 14,
       style: {
-        color: `var(${c.cssVar})`
+        color: c.color
       }
     }), /*#__PURE__*/React.createElement("span", null, c.label)), /*#__PURE__*/React.createElement("div", {
       className: "lf-bar-track" + (excedido ? " lf-bar-exceeded" : ""),
@@ -1341,12 +1451,13 @@ export function LibroFamiliar() {
     }), /*#__PURE__*/React.createElement("span", {
       className: "lf-bar-nums"
     }, fmt(gastado), presu > 0 ? ` / ${fmt(presu)}` : ""));
-  })), /*#__PURE__*/React.createElement("p", {
+  })))), /*#__PURE__*/React.createElement("p", {
     className: "lf-pct-total"
-  }, "Se arma sumando lo que cada uno parametrizó en su columna.")), activeTab === "registro" && /*#__PURE__*/React.createElement(HogarSection, {
+  }, "Cada uno con sus propias agrupaciones y su propia parametrización.")), activeTab === "registro" && /*#__PURE__*/React.createElement(HogarSection, {
     list: fijosHogar,
     split: splitHogar,
     entries: entries,
+    categorias: agrupaciones[activePerson] || [],
     onSaveAll: saveHogarConfig,
     onCargar: cargarFijosHogarDelMes,
     cotizacionDolar: cotizacionDolar,
