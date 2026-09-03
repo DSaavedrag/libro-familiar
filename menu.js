@@ -602,11 +602,12 @@ export function LibroFamiliar() {
     }
     return false;
   }
-  function cargarFijosHogarDelMes() {
+  function cargarFijosHogarDelMes(fijoId) {
     const nuevas = armarEntriesHogarFaltantes({
       fijosHogar,
       entries,
-      split: splitHogar
+      split: splitHogar,
+      soloId: fijoId
     });
     if (nuevas.length === 0) return;
     persistEntries([...nuevas, ...entries]);
@@ -876,12 +877,13 @@ export function LibroFamiliar() {
       mesesFallidos: nuevosFallidos
     } : p));
   }
-  function cargarFijosDelMes(personId) {
+  function cargarFijosDelMes(personId, fijoId) {
     const nuevas = armarEntriesFijosFaltantes({
       list: fijos[personId] || [],
       entries,
       personId,
-      cotizacionDolar
+      cotizacionDolar,
+      soloId: fijoId
     });
     if (nuevas.length === 0) return;
     persistEntries([...nuevas, ...entries]);
@@ -1343,7 +1345,7 @@ export function LibroFamiliar() {
     onSaveAgrupaciones: list => saveAgrupacionesFor("diego", list),
     fijos: fijos.diego,
     onSaveFijos: list => saveFijosFor("diego", list),
-    onCargarFijos: () => cargarFijosDelMes("diego"),
+    onCargarFijos: fijoId => cargarFijosDelMes("diego", fijoId),
     onTogglePagado: togglePagado,
     onRemoveEntry: removeEntry,
     tarjetas: tarjetas.diego,
@@ -1365,7 +1367,7 @@ export function LibroFamiliar() {
     onSaveAgrupaciones: list => saveAgrupacionesFor("yani", list),
     fijos: fijos.yani,
     onSaveFijos: list => saveFijosFor("yani", list),
-    onCargarFijos: () => cargarFijosDelMes("yani"),
+    onCargarFijos: fijoId => cargarFijosDelMes("yani", fijoId),
     onTogglePagado: togglePagado,
     onRemoveEntry: removeEntry,
     tarjetas: tarjetas.yani,

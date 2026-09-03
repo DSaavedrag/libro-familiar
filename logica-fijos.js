@@ -64,13 +64,21 @@ export function entriesActualizadasPorHogar(entries, list, split) {
 // Arma los movimientos nuevos para "Cargar en este mes" de los fijos
 // personales que todavía no tengan un movimiento cargado este mes. Devuelve
 // un array vacío si no hay nada pendiente.
+//
+// `soloId`: si se pasa, sólo arma el movimiento de ESE fijo (si está
+// pendiente) en vez de todos los pendientes — es lo que usa el botón
+// "Cargar" de una fila individual, para poder cargar servicios sin esperar
+// a tener el monto del alquiler, por ejemplo. Sin `soloId` se comporta igual
+// que siempre (carga todos los pendientes de una).
 export function armarEntriesFijosFaltantes({
   list,
   entries,
   personId,
-  cotizacionDolar
+  cotizacionDolar,
+  soloId
 }) {
-  const faltantes = list.filter(f => !entries.some(e => e.fijoId === f.id));
+  const base = soloId ? list.filter(f => f.id === soloId) : list;
+  const faltantes = base.filter(f => !entries.some(e => e.fijoId === f.id));
   if (faltantes.length === 0) return [];
   const now = Date.now();
   return faltantes.map((f, i) => ({
@@ -91,13 +99,15 @@ export function armarEntriesFijosFaltantes({
 
 // Igual que armarEntriesFijosFaltantes, pero para los fijos del Hogar —
 // genera DOS movimientos por fijo (uno para Diego, uno para Yani),
-// repartidos según `split`.
+// repartidos según `split`. También acepta `soloId` con el mismo sentido.
 export function armarEntriesHogarFaltantes({
   fijosHogar,
   entries,
-  split
+  split,
+  soloId
 }) {
-  const faltantes = fijosHogar.filter(f => !entries.some(e => e.hogarId === f.id));
+  const base = soloId ? fijosHogar.filter(f => f.id === soloId) : fijosHogar;
+  const faltantes = base.filter(f => !entries.some(e => e.hogarId === f.id));
   if (faltantes.length === 0) return [];
   const now = Date.now();
   const nuevas = [];

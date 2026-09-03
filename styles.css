@@ -1194,6 +1194,25 @@
       }
       .lf-fijo-item-name { flex: 1; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .lf-fijo-item-monto { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+      .lf-fijo-item-cargar {
+        border: 1px solid var(--accent, var(--ink));
+        color: var(--accent, var(--ink));
+        background: transparent;
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        margin-left: 4px;
+      }
+      .lf-fijo-item-cargar:hover { background: color-mix(in srgb, var(--accent, var(--ink)) 10%, white); }
+      .lf-fijo-item-cargado {
+        color: var(--ink-soft);
+        font-size: 12px;
+        margin-left: 4px;
+        opacity: 0.6;
+      }
 
       .lf-fijo-cargar {
         width: 100%;

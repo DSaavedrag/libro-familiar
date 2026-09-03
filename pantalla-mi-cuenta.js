@@ -315,6 +315,7 @@ export function PersonColumn({
     accentVar: p.cssVar,
     list: fijos || [],
     pendientes: pendientesFijos,
+    entries: data.list,
     categorias: cats,
     onSave: onSaveFijos,
     onCargar: onCargarFijos,

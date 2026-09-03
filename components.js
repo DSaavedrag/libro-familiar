@@ -3,7 +3,7 @@
 // pero que no tienen estado "de la app" propio.
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Pencil, Check, CreditCard, RefreshCw, X } from "lucide-react";
-import { fmt, monthLabel, monthDiff, shiftMonth, categoriaDe, iconoDe } from "./constants.js";
+import { fmt, fmtFechaHora, monthLabel, monthDiff, shiftMonth, categoriaDe, iconoDe } from "./constants.js";
 
 export function budgetsFrom(pct, ingresos, categorias) {
   return Object.fromEntries((categorias || []).map(c => [c.id, (Number(ingresos) || 0) * (Number(pct[c.id]) || 0) / 100]));
@@ -668,6 +668,7 @@ export function FijosSection({
   accentVar,
   list,
   pendientes,
+  entries,
   categorias,
   onSave,
   onCargar,
@@ -795,6 +796,7 @@ export function FijosSection({
     className: "lf-fijos-list"
   }, list.map(f => {
     const cat = categoriaDe(categorias, f.categoria);
+    const cargado = (entries || []).some(e => e.fijoId === f.id);
     return /*#__PURE__*/React.createElement("div", {
       className: "lf-fijo-item",
       key: f.id
@@ -810,12 +812,18 @@ export function FijosSection({
       className: "lf-fijo-item-tarjeta-icon"
     })), /*#__PURE__*/React.createElement("span", {
       className: "lf-fijo-item-monto"
-    }, f.moneda === "USD" ? `u$s ${f.monto} (≈ ${fmt((Number(f.monto) || 0) * (Number(cotizacionDolar) || 0))})` : fmt(f.monto)));
+    }, f.moneda === "USD" ? `u$s ${f.monto} (≈ ${fmt((Number(f.monto) || 0) * (Number(cotizacionDolar) || 0))})` : fmt(f.monto)), !readOnly && (cargado ? /*#__PURE__*/React.createElement("span", {
+      className: "lf-fijo-item-cargado",
+      title: "Ya cargado este mes"
+    }, "✓") : /*#__PURE__*/React.createElement("button", {
+      className: "lf-fijo-item-cargar",
+      onClick: () => onCargar(f.id)
+    }, "Cargar")));
   })), !readOnly && list.length > 0 && /*#__PURE__*/React.createElement("button", {
     className: "lf-fijo-cargar",
-    onClick: onCargar,
+    onClick: () => onCargar(),
     disabled: pendientes === 0
-  }, pendientes === 0 ? "Ya cargados este mes ✓" : `Cargar en este mes (${pendientes})`)));
+  }, pendientes === 0 ? "Ya cargados este mes ✓" : `Cargar todos (${pendientes})`)));
 }
 export function RowEntry({
   entry,
@@ -833,6 +841,17 @@ export function RowEntry({
   const pendienteTarjeta = (entry.esTarjeta || entry.tarjetaId) && !entry.pagado;
   const esCredito = entry.tipo === "gasto" && Number(entry.monto) < 0;
   const esPositivo = entry.tipo === "ingreso" || esCredito;
+  // Fecha y hora en que se cargó el movimiento (entry.ts, en milisegundos —
+  // ya se venía guardando desde hace tiempo para poder ordenar, ahora
+  // también se muestra). Los movimientos viejos que se cargaron antes de que
+  // existiera este campo no van a tener ts — para esos, fechaHora da null y
+  // simplemente no se muestra nada, en vez de una fecha inventada.
+  const fechaHora = entry.ts ? fmtFechaHora(entry.ts) : null;
+  // Se arma como lista y se unen con " · " al final, en vez de concatenar
+  // strings condicionales a mano — así nunca queda un separador colgando al
+  // principio cuando el primer dato (la categoría) no aplica, como pasa en
+  // los ingresos (que no tienen categoría).
+  const detalles = [cat && cat.label, fechaHora, entry.montoUSD ? `u$s ${entry.montoUSD} (cotiz. ${fmt(entry.cotizacionUsada)})` : null, esCredito ? "rendimiento (a favor)" : null, pendienteTarjeta ? "pendiente de pago" : null].filter(Boolean).join(" · ");
   return /*#__PURE__*/React.createElement("div", {
     className: "lf-entry" + (entry.pagado ? " lf-entry-pagado" : "") + (pendienteTarjeta ? " lf-entry-pendiente" : "")
   }, /*#__PURE__*/React.createElement("div", {
@@ -845,7 +864,7 @@ export function RowEntry({
     className: "lf-entry-desc"
   }, entry.descripcion || (entry.tipo === "ingreso" ? "Ingreso" : cat ? cat.label : "Gasto")), /*#__PURE__*/React.createElement("span", {
     className: "lf-entry-cat"
-  }, cat && cat.label, entry.montoUSD ? ` · u$s ${entry.montoUSD} (cotiz. ${fmt(entry.cotizacionUsada)})` : "", esCredito ? " · rendimiento (a favor)" : "", pendienteTarjeta ? " · pendiente de pago" : ""))), /*#__PURE__*/React.createElement("div", {
+  }, detalles))), /*#__PURE__*/React.createElement("div", {
     className: "lf-entry-right"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lf-entry-amt-row"

@@ -175,6 +175,7 @@ export function HogarSection({
     const cat = categoriaDe(categorias, f.categoria);
     const partDiego = (Number(f.monto) || 0) * (Number(split.diego) || 0) / 100;
     const partYani = (Number(f.monto) || 0) * (Number(split.yani) || 0) / 100;
+    const cargado = (entries || []).some(e => e.hogarId === f.id);
     return /*#__PURE__*/React.createElement("div", {
       className: "lf-hogar-item",
       key: f.id
@@ -189,7 +190,13 @@ export function HogarSection({
       className: "lf-fijo-item-name"
     }, f.nombre), /*#__PURE__*/React.createElement("span", {
       className: "lf-fijo-item-monto"
-    }, fmt(f.monto))), /*#__PURE__*/React.createElement("div", {
+    }, fmt(f.monto)), cargado ? /*#__PURE__*/React.createElement("span", {
+      className: "lf-fijo-item-cargado",
+      title: "Ya cargado este mes"
+    }, "✓") : /*#__PURE__*/React.createElement("button", {
+      className: "lf-fijo-item-cargar",
+      onClick: () => onCargar(f.id)
+    }, "Cargar")), /*#__PURE__*/React.createElement("div", {
       className: "lf-hogar-item-split"
     }, /*#__PURE__*/React.createElement("span", {
       style: {
@@ -202,9 +209,9 @@ export function HogarSection({
     }, "Yani ", fmt(partYani))));
   })), list.length > 0 && /*#__PURE__*/React.createElement("button", {
     className: "lf-fijo-cargar lf-hogar-cargar",
-    onClick: onCargar,
+    onClick: () => onCargar(),
     disabled: pendientes === 0
-  }, pendientes === 0 ? "Ya cargados este mes ✓" : `Cargar en este mes (${pendientes})`)), /*#__PURE__*/React.createElement(TarjetasHogarSection, {
+  }, pendientes === 0 ? "Ya cargados este mes ✓" : `Cargar todos (${pendientes})`)), /*#__PURE__*/React.createElement(TarjetasHogarSection, {
     list: tarjetasHogar,
     month: month,
     split: split,
