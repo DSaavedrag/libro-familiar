@@ -170,6 +170,23 @@ export const fmt = n => {
   const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${neg ? "-" : ""}$ ${withThousands},${decPart}`;
 };
+
+// Fecha y hora en que se registró un movimiento (entry.ts, milisegundos),
+// formateado corto para mostrar al lado de cada movimiento: "26/08 14:30".
+// Sin año (no hace falta para movimientos del mes en curso) y en hora local
+// del dispositivo que lo muestra. Devuelve null si no hay ts (movimientos
+// viejos, cargados antes de que este campo se mostrara) — quien lo use debe
+// simplemente no mostrar nada en ese caso, no inventar una fecha.
+export function fmtFechaHora(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return null;
+  const dia = String(d.getDate()).padStart(2, "0");
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${dia}/${mes} ${hh}:${mm}`;
+}
 export const PCT_DEFAULT = {
   ahorros: 20,
   necesidades: 45,
