@@ -20,7 +20,7 @@ import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
 import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
 import { montoArsDeFijo, entriesActualizadasPorFijos, entriesActualizadasPorHogar, armarEntriesFijosFaltantes, armarEntriesHogarFaltantes } from "./logica-fijos.js";
-import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada } from "./logica-movimientos.js";
+import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta } from "./logica-movimientos.js";
 import { entrarOCrearCuenta, suscribirseASesion, cerrarSesion, buscarJugadorPorUid, obtenerJugadoresVinculados, vincularJugadorPropio } from "./auth.js";
 
 export function LibroFamiliar() {
@@ -1272,10 +1272,18 @@ export function LibroFamiliar() {
   }, "Consumo único")), form.tipo === "gasto" && form.esTarjeta && form.tarjetaModo === "agrupable" && /*#__PURE__*/React.createElement(EtiquetasTarjetaPicker, {
     etiquetas: etiquetasTarjeta[activePerson] || [],
     seleccionada: form.etiquetaId,
-    onSeleccionar: id => setForm({
-      ...form,
-      etiquetaId: id
-    }),
+    onSeleccionar: id => {
+      // Apenas queda tildado "Es tarjeta" + elegida la etiqueta (ej: Sube),
+      // sugerir el monto más común que cargó con esa etiqueta — así no tiene
+      // que acordarse ni tipear el valor de siempre. Si ya había algo escrito
+      // en monto, se respeta (no se lo pisa).
+      const sugerido = !form.monto ? sugerirMontoTarjetaPorEtiqueta(entries, activePerson, id) : null;
+      setForm({
+        ...form,
+        etiquetaId: id,
+        monto: sugerido != null ? String(sugerido) : form.monto
+      });
+    },
     onGuardarEtiquetas: list => saveEtiquetasTarjeta(activePerson, list),
     categoriaActual: form.categoria,
     categorias: agrupaciones[activePerson] || [],
@@ -1314,10 +1322,19 @@ export function LibroFamiliar() {
     type: "text",
     placeholder: "Descripción (opcional)",
     value: form.descripcion,
-    onChange: e => setForm({
-      ...form,
-      descripcion: e.target.value
-    }),
+    onChange: e => {
+      const descripcion = e.target.value;
+      // Si todavía no cargó un monto, y ya cargó antes algo con esta misma
+      // descripción (ej: "Sube"), sugerir el último monto usado — así no
+      // tiene que acordarse cuánto sale el boleto cada vez. Si el monto ya
+      // tiene algo escrito, no se lo pisa: gana lo que el usuario tipeó.
+      const sugerido = !form.monto ? sugerirMontoPorDescripcion(entries, activePerson, form.tipo, descripcion) : null;
+      setForm({
+        ...form,
+        descripcion,
+        monto: sugerido != null ? String(sugerido) : form.monto
+      });
+    },
     onKeyDown: e => e.key === "Enter" && addEntry()
   }), /*#__PURE__*/React.createElement("button", {
     className: "lf-add-btn",

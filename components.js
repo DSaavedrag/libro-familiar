@@ -908,6 +908,52 @@ export function RowEntry({
     size: 11
   }), entry.pagado ? "Pagado" : "Marcar pagado"))));
 }
+
+// Fila "resumen" para cuando varios movimientos comparten la misma
+// descripción dentro de un mismo grupo (ej: 10 cargas de "Sube" en
+// Necesidades) — en vez de ensuciar la lista con cada una, se muestra una
+// sola fila con el total y la fecha de la última, y se puede desplegar para
+// ver (y accionar: marcar pagado, borrar) cada movimiento individual si hace
+// falta corregir alguno puntual.
+export function RowEntryResumen({
+  descripcion,
+  count,
+  total,
+  esPositivo,
+  ultimoTs,
+  categoria,
+  categorias,
+  abierto,
+  onToggle
+}) {
+  const cat = categoria ? categoriaDe(categorias, categoria) : null;
+  const fechaHora = ultimoTs ? fmtFechaHora(ultimoTs) : null;
+  const detalles = [cat && cat.label, fechaHora ? `última: ${fechaHora}` : null].filter(Boolean).join(" · ");
+  return /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "lf-entry lf-entry-resumen",
+    onClick: onToggle,
+    "aria-expanded": abierto
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lf-entry-main"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "lf-entry-dot " + (esPositivo ? "in" : "out")
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "lf-entry-text"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "lf-entry-desc"
+  }, descripcion || "Gasto", /*#__PURE__*/React.createElement("span", {
+    className: "lf-entry-resumen-count"
+  }, "×", count)), /*#__PURE__*/React.createElement("span", {
+    className: "lf-entry-cat"
+  }, detalles))), /*#__PURE__*/React.createElement("div", {
+    className: "lf-entry-right"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "lf-entry-amt " + (esPositivo ? "lf-pos" : "lf-neg")
+  }, esPositivo ? "+" : "−", fmt(Math.abs(total))), /*#__PURE__*/React.createElement("span", {
+    className: "lf-entry-resumen-chevron"
+  }, abierto ? "▲" : "▼")));
+}
 export function Shell({
   children
 }) {

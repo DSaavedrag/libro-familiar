@@ -3,12 +3,53 @@
 // La llama LibroFamiliar (menu.js), pasándole los datos y funciones que necesita.
 import React, { useState, useEffect } from "react";
 import { Pencil, Check, CreditCard, Tags, Trash2, Plus, X } from "lucide-react";
-import { PERSONAS, fmt, ICONOS_AGRUPACION, iconoDe } from "./constants.js";
-import { FijosSection, TarjetasSection, budgetsFrom, RowEntry } from "./components.js";
+import { PERSONAS, fmt, ICONOS_AGRUPACION, iconoDe, categoriaDe } from "./constants.js";
+import { FijosSection, TarjetasSection, budgetsFrom, RowEntry, RowEntryResumen } from "./components.js";
 
 // Marcas de referencia debajo de cada slider de Parametrizar: 0, 5, 10, 15... 100.
 // Los múltiplos de 10 se dibujan más largos (ver .lf-pct-tick-major en styles.css).
 const PCT_TICKS = Array.from({ length: 21 }, (_, i) => i * 5);
+
+// Junta, dentro de una lista de movimientos, los que comparten la misma
+// descripción (sin importar mayúsculas/espacios) en un solo "renglón resumen"
+// con el total y la fecha del último — se usa tanto en "Movimientos" como en
+// el detalle de cada agrupación en Parametrizar, porque en los dos lugares
+// pasa lo mismo: algo que se repite seguido (la SUBE, sobre todo) ensucia la
+// lista si se muestra uno por uno. Lo que no se repite queda como estaba
+// ("single"). `clavePrefix` evita que dos listas distintas (ej. Movimientos
+// de "Necesidades" y el detalle de "Necesidades" en Parametrizar) compartan
+// sin querer el mismo estado de "desplegado" — ver resumenesAbiertos.
+function agruparPorDescripcion(items, clavePrefix) {
+  const porDescripcion = {};
+  items.forEach(e => {
+    const clave = (e.descripcion || "").trim().toLowerCase();
+    const key = clave || `__id_${e.id}`; // sin descripción: no se agrupa con nada más
+    (porDescripcion[key] = porDescripcion[key] || []).push(e);
+  });
+  const renglones = Object.values(porDescripcion).map(grupo => {
+    if (grupo.length === 1) return {
+      tipo: "single",
+      entry: grupo[0],
+      ts: grupo[0].ts || 0
+    };
+    const primero = grupo[0];
+    const ultimoTs = Math.max(...grupo.map(e => e.ts || 0));
+    return {
+      tipo: "resumen",
+      clave: `${clavePrefix}::${(primero.descripcion || "").trim().toLowerCase()}`,
+      descripcion: primero.descripcion,
+      categoria: primero.categoria,
+      esPositivo: primero.tipo === "ingreso" || primero.tipo === "gasto" && Number(primero.monto) < 0,
+      total: grupo.reduce((s, e) => s + e.monto, 0),
+      count: grupo.length,
+      ultimoTs,
+      items: grupo,
+      ts: ultimoTs
+    };
+  });
+  renglones.sort((a, b) => b.ts - a.ts);
+  return renglones;
+}
 
 export function PersonColumn({
   person,
@@ -38,6 +79,55 @@ export function PersonColumn({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(settings);
   const [editingAgrupaciones, setEditingAgrupaciones] = useState(false);
+  // Qué filas "resumen" de Movimientos (varios cargos con la misma
+  // descripción, ej. 10 cargas de "Sube") están desplegadas mostrando cada
+  // movimiento individual en vez de sólo el total — ver gruposMovimientos.
+  const [resumenesAbiertos, setResumenesAbiertos] = useState(() => new Set());
+  function toggleResumen(clave) {
+    setResumenesAbiertos(prev => {
+      const next = new Set(prev);
+      if (next.has(clave)) next.delete(clave);else next.add(clave);
+      return next;
+    });
+  }
+  // Dibuja un "renglón" armado por agruparPorDescripcion: un movimiento
+  // suelto (RowEntry de siempre) o, si varios comparten descripción, la fila
+  // resumen con su detalle desplegable.
+  function renderRenglon(r) {
+    if (r.tipo === "single") {
+      return /*#__PURE__*/React.createElement(RowEntry, {
+        key: r.entry.id,
+        entry: r.entry,
+        categorias: cats,
+        onTogglePagado: onTogglePagado,
+        onRemove: onRemoveEntry,
+        readOnly: readOnly
+      });
+    }
+    const abierto = resumenesAbiertos.has(r.clave);
+    return /*#__PURE__*/React.createElement(React.Fragment, {
+      key: r.clave
+    }, /*#__PURE__*/React.createElement(RowEntryResumen, {
+      descripcion: r.descripcion,
+      count: r.count,
+      total: r.total,
+      esPositivo: r.esPositivo,
+      ultimoTs: r.ultimoTs,
+      categoria: r.categoria,
+      categorias: cats,
+      abierto: abierto,
+      onToggle: () => toggleResumen(r.clave)
+    }), abierto && /*#__PURE__*/React.createElement("div", {
+      className: "lf-entry-resumen-detalle"
+    }, r.items.map(e => /*#__PURE__*/React.createElement(RowEntry, {
+      key: e.id,
+      entry: e,
+      categorias: cats,
+      onTogglePagado: onTogglePagado,
+      onRemove: onRemoveEntry,
+      readOnly: readOnly
+    }))));
+  }
   useEffect(() => {
     if (!editing) setDraft(settings);
   }, [settings, editing]);
@@ -103,6 +193,61 @@ export function PersonColumn({
       porEtiqueta
     };
   }).filter(Boolean);
+
+  // Movimientos agrupados por agrupación (en vez de una lista plana): Diego
+  // pidió mantener el orden por fecha pero agrupado, porque en la lista plana
+  // se perdía de vista "qué es cada cosa" al mezclar categorías. Los ingresos
+  // van en su propio grupo arriba (no tienen categoría); las demás siguen el
+  // orden en el que el jugador armó sus agrupaciones; y un movimiento viejo
+  // con una categoría que ya no existe cae en "Sin categoría" al final, en
+  // vez de desaparecer. Dentro de cada grupo, más reciente primero.
+  const gruposMovimientos = (() => {
+    const idsVigentes = new Set(cats.map(c => c.id));
+    const porClave = {};
+    data.list.forEach(e => {
+      // Cualquier gasto cuya categoría no exista más en la lista vigente
+      // (borrada, o de otro jugador) cae acá también, no sólo los que nunca
+      // tuvieron categoría — así no desaparecen silenciosamente.
+      const clave = e.tipo === "ingreso" ? "__ingreso__" : e.categoria && idsVigentes.has(e.categoria) ? e.categoria : "__sin_categoria__";
+      (porClave[clave] = porClave[clave] || []).push(e);
+    });
+    const grupos = [];
+    if (porClave.__ingreso__) grupos.push({
+      key: "__ingreso__",
+      label: "Ingresos",
+      color: null,
+      icon: null,
+      items: porClave.__ingreso__
+    });
+    cats.forEach(c => {
+      if (porClave[c.id]) grupos.push({
+        key: c.id,
+        label: c.label,
+        color: c.color,
+        icon: c.icon,
+        items: porClave[c.id]
+      });
+    });
+    if (porClave.__sin_categoria__) grupos.push({
+      key: "__sin_categoria__",
+      label: categoriaDe(cats, null).label,
+      color: categoriaDe(cats, null).color,
+      icon: categoriaDe(cats, null).icon,
+      items: porClave.__sin_categoria__
+    });
+    // Dentro de cada grupo, si varios movimientos comparten la misma
+    // descripción (ej: 10 cargas de "Sube"), se juntan en un solo renglón
+    // "resumen" con el total y la fecha de la última — Diego pidió esto
+    // porque las cosas que se repiten seguido (la SUBE, sobre todo) le
+    // ensuciaban la lista. Lo que NO se repite se muestra como siempre, sin
+    // agrupar de más. Cada resumen se puede desplegar (resumenesAbiertos)
+    // para ver y accionar (marcar pagado, borrar) cada movimiento suelto.
+    grupos.forEach(g => {
+      g.items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      g.renglones = agruparPorDescripcion(g.items, g.key);
+    });
+    return grupos;
+  })();
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "lf-swipe-page"
   }, /*#__PURE__*/React.createElement("div", {
@@ -232,6 +377,7 @@ export function PersonColumn({
     const restante = presu - gastado;
     const catAbierta = categoriaAbierta === c.id;
     const movsCategoria = data.list.filter(e => e.tipo === "gasto" && e.categoria === c.id);
+    const renglonesCategoria = agruparPorDescripcion(movsCategoria, `cat::${c.id}`);
     return /*#__PURE__*/React.createElement(React.Fragment, {
       key: c.id
     }, /*#__PURE__*/React.createElement("div", {
@@ -299,14 +445,7 @@ export function PersonColumn({
       className: "lf-col-cat-mov-list"
     }, movsCategoria.length === 0 ? /*#__PURE__*/React.createElement("p", {
       className: "lf-empty"
-    }, "Sin movimientos en ", c.label, " este mes.") : movsCategoria.map(e => /*#__PURE__*/React.createElement(RowEntry, {
-      key: e.id,
-      entry: e,
-      categorias: cats,
-      onTogglePagado: onTogglePagado,
-      onRemove: onRemoveEntry,
-      readOnly: readOnly
-    }))));
+    }, "Sin movimientos en ", c.label, " este mes.") : renglonesCategoria.map(renderRenglon)));
   }), editing && /*#__PURE__*/React.createElement("p", {
     className: "lf-pct-total lf-pct-total-col" + (pctTotal !== 100 ? " lf-pct-warn" : "")
   }, "Total: ", pctTotal, "% ", pctTotal !== 100 && "— debería sumar 100%"))), /*#__PURE__*/React.createElement("div", {
@@ -345,14 +484,18 @@ export function PersonColumn({
     className: "lf-col-list"
   }, data.list.length === 0 && /*#__PURE__*/React.createElement("p", {
     className: "lf-empty"
-  }, "Todavía no hay movimientos."), data.list.map(e => /*#__PURE__*/React.createElement(RowEntry, {
-    key: e.id,
-    entry: e,
-    categorias: cats,
-    onTogglePagado: onTogglePagado,
-    onRemove: onRemoveEntry,
-    readOnly: readOnly
-  }))))));
+  }, "Todavía no hay movimientos."), gruposMovimientos.map(g => /*#__PURE__*/React.createElement(React.Fragment, {
+    key: g.key
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lf-movs-group-head",
+    style: g.color ? {
+      color: g.color
+    } : undefined
+  }, g.icon && /*#__PURE__*/React.createElement(iconoDe(g.icon), {
+    size: 13
+  }), /*#__PURE__*/React.createElement("span", null, g.label), /*#__PURE__*/React.createElement("span", {
+    className: "lf-movs-group-count"
+  }, g.items.length)), g.renglones.map(renderRenglon)))))));
 }
 
 // Editor de "Agrupaciones" (Ahorros/Necesidades/Liah/Placeres, o lo que cada

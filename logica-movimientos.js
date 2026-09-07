@@ -75,6 +75,53 @@ export async function escribirEntriesEnMes({
   return Boolean(res);
 }
 
+// Busca el monto más reciente que esta persona cargó con la misma
+// descripción (sin importar mayúsculas ni espacios) — para sugerirlo cuando
+// se repite algo seguido con (casi) siempre el mismo valor, como la SUBE.
+// Sólo mira gastos sueltos (no tarjeta, no fijo/hogar, que tienen su propia
+// lógica de monto) del mismo tipo que se está por cargar. Devuelve null si
+// no hay nada que sugerir, para que quien llama no toque el monto.
+export function sugerirMontoPorDescripcion(entries, personId, tipo, descripcion) {
+  const buscada = (descripcion || "").trim().toLowerCase();
+  if (!buscada) return null;
+  const candidatos = (entries || []).filter(e => e.person === personId && e.tipo === tipo && !e.esTarjeta && !e.fijoId && !e.hogarId && (e.descripcion || "").trim().toLowerCase() === buscada);
+  if (candidatos.length === 0) return null;
+  const masReciente = candidatos.reduce((a, b) => (b.ts || 0) > (a.ts || 0) ? b : a);
+  return masReciente.monto;
+}
+// Igual que sugerirMontoPorDescripcion, pero para el otro circuito de carga:
+// gasto de tarjeta "agrupable" con etiqueta (ej: "Es tarjeta" + etiqueta
+// "Sube") — Diego la usa así para la SUBE, no como gasto suelto con
+// descripción libre. Acá conviene sugerir el monto MÁS COMÚN (no el último),
+// porque a veces carga dos boletos juntos y ese valor puntual no es el que
+// quiere que se repita solo; ante un empate en frecuencia, gana el más
+// reciente de esos montos empatados.
+export function sugerirMontoTarjetaPorEtiqueta(entries, personId, etiquetaId) {
+  if (!etiquetaId) return null;
+  const candidatos = (entries || []).filter(e => e.person === personId && e.esTarjeta && e.etiquetaId === etiquetaId);
+  if (candidatos.length === 0) return null;
+  const stats = new Map(); // monto -> { count, ultimoTs }
+  candidatos.forEach(e => {
+    const prev = stats.get(e.monto) || {
+      count: 0,
+      ultimoTs: 0
+    };
+    prev.count += 1;
+    prev.ultimoTs = Math.max(prev.ultimoTs, e.ts || 0);
+    stats.set(e.monto, prev);
+  });
+  let mejorMonto = null;
+  let mejorCount = -1;
+  let mejorTs = -1;
+  stats.forEach((info, monto) => {
+    if (info.count > mejorCount || info.count === mejorCount && info.ultimoTs > mejorTs) {
+      mejorMonto = monto;
+      mejorCount = info.count;
+      mejorTs = info.ultimoTs;
+    }
+  });
+  return mejorMonto;
+}
 export function entriesSinId(entries, id) {
   return entries.filter(e => e.id !== id);
 }
