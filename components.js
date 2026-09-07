@@ -347,6 +347,7 @@ export function TarjetasHogarSection({
     })
   }))), /*#__PURE__*/React.createElement(CategoryDots, {
     value: form.categoria,
+    categorias: categorias,
     onChange: cat => setForm({
       ...form,
       categoria: cat
@@ -573,6 +574,7 @@ export function TarjetasSection({
     })
   }))), /*#__PURE__*/React.createElement(CategoryDots, {
     value: form.categoria,
+    categorias: categorias,
     onChange: cat => setForm({
       ...form,
       categoria: cat
@@ -772,6 +774,7 @@ export function FijosSection({
     className: "lf-fijo-usd-preview"
   }, "≈ ", fmt((Number(f.monto) || 0) * (Number(cotizacionDolar) || 0)), " a la cotización actual (", fmt(cotizacionDolar), "/u$s)"), /*#__PURE__*/React.createElement(CategoryDots, {
     value: f.categoria,
+    categorias: categorias,
     onChange: cat => updateRow(f.id, {
       categoria: cat
     })
