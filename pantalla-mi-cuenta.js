@@ -2,7 +2,7 @@
 // Parametrizar (%), y el bloque de Gastos fijos + Tarjetas + Movimientos.
 // La llama LibroFamiliar (menu.js), pasándole los datos y funciones que necesita.
 import React, { useState, useEffect } from "react";
-import { Pencil, Check, CreditCard, Tags, Trash2, Plus, X } from "lucide-react";
+import { Pencil, Check, CreditCard, Tags, Trash2, Plus, X, Palette } from "lucide-react";
 import { PERSONAS, fmt, ICONOS_AGRUPACION, iconoDe, categoriaDe } from "./constants.js";
 import { FijosSection, TarjetasSection, budgetsFrom, RowEntry, RowEntryResumen } from "./components.js";
 
@@ -59,6 +59,8 @@ export function PersonColumn({
   onSave,
   categorias,
   onSaveAgrupaciones,
+  tema,
+  onSaveTema,
   fijos,
   onSaveFijos,
   onCargarFijos,
@@ -79,6 +81,7 @@ export function PersonColumn({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(settings);
   const [editingAgrupaciones, setEditingAgrupaciones] = useState(false);
+  const [editingTema, setEditingTema] = useState(false);
   // Qué filas "resumen" de Movimientos (varios cargos con la misma
   // descripción, ej. 10 cargas de "Sube") están desplegadas mostrando cada
   // movimiento individual en vez de sólo el total — ver gruposMovimientos.
@@ -277,13 +280,27 @@ export function PersonColumn({
     size: 13
   }) : /*#__PURE__*/React.createElement(Tags, {
     size: 13
-  }), editingAgrupaciones ? "Listo" : "Agrupaciones"))), editingAgrupaciones && /*#__PURE__*/React.createElement(AgrupacionesEditor, {
+  }), editingAgrupaciones ? "Listo" : "Agrupaciones"), !editing && !editingAgrupaciones && /*#__PURE__*/React.createElement("button", {
+    className: "lf-edit-btn lf-edit-btn-col",
+    onClick: () => setEditingTema(v => !v)
+  }, editingTema ? /*#__PURE__*/React.createElement(Check, {
+    size: 13
+  }) : /*#__PURE__*/React.createElement(Palette, {
+    size: 13
+  }), editingTema ? "Listo" : "Tema"))), editingAgrupaciones && /*#__PURE__*/React.createElement(AgrupacionesEditor, {
     categorias: cats,
     onGuardar: list => {
       onSaveAgrupaciones(list);
       setEditingAgrupaciones(false);
     },
     onCancelar: () => setEditingAgrupaciones(false)
+  }), editingTema && /*#__PURE__*/React.createElement(TemaEditor, {
+    tema: tema,
+    onGuardar: t => {
+      onSaveTema(t);
+      setEditingTema(false);
+    },
+    onCancelar: () => setEditingTema(false)
   }), /*#__PURE__*/React.createElement("div", {
     className: "lf-col-totals"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
@@ -612,6 +629,87 @@ function AgrupacionesEditor({
   }, /*#__PURE__*/React.createElement("button", {
     className: "lf-add-btn",
     onClick: guardar
+  }, /*#__PURE__*/React.createElement(Check, {
+    size: 14
+  }), " Guardar"), /*#__PURE__*/React.createElement("button", {
+    className: "lf-agrup-cancel",
+    onClick: onCancelar
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 14
+  }), " Cancelar")));
+}
+
+// Paleta por defecto (la que ve cualquiera que no personalizó nada) — mismos
+// valores que los fallback var(--x, #...) de styles.css, para que el picker
+// arranque mostrando el color que ya se está viendo.
+const TEMA_DEFAULT = {
+  rootBg: "#1C0E0D",
+  cardBg: "#3D0A0A",
+  accent: "#C31015"
+};
+// Editor de tema personal: cada jugador elige su propio fondo de app, color
+// de tarjetas y color de acento (botones) — no afecta al otro jugador, cada
+// uno guarda el suyo en Firebase bajo `tema:{person}` (ver saveTemaFor en
+// menu.js). "Restaurar paleta original" borra la personalización entera y
+// vuelve a mostrar los valores por defecto de arriba.
+function TemaEditor({
+  tema,
+  onGuardar,
+  onCancelar
+}) {
+  const [draft, setDraft] = useState({
+    ...TEMA_DEFAULT,
+    ...(tema || {})
+  });
+  function setColor(key, value) {
+    setDraft(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  }
+  function restaurar() {
+    setDraft(TEMA_DEFAULT);
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "lf-agrup-editor"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "lf-agrup-hint"
+  }, "Tu paleta personal — no afecta lo que ve ", /*#__PURE__*/React.createElement("strong", null, "el otro jugador"), ", cada uno elige la suya."), [{
+    key: "rootBg",
+    label: "Fondo de la app"
+  }, {
+    key: "cardBg",
+    label: "Color de las tarjetas"
+  }, {
+    key: "accent",
+    label: "Color de acento (botones)"
+  }].map(f => /*#__PURE__*/React.createElement("div", {
+    className: "lf-agrup-row",
+    key: f.key
+  }, /*#__PURE__*/React.createElement("input", {
+    className: "lf-agrup-nombre",
+    style: {
+      background: "transparent",
+      color: "var(--paper)",
+      cursor: "default"
+    },
+    value: f.label,
+    readOnly: true
+  }), /*#__PURE__*/React.createElement("input", {
+    className: "lf-agrup-color-input",
+    type: "color",
+    value: draft[f.key],
+    onChange: e => setColor(f.key, e.target.value),
+    "aria-label": f.label
+  }))), /*#__PURE__*/React.createElement("button", {
+    className: "lf-fijo-add",
+    onClick: restaurar,
+    type: "button"
+  }, "Restaurar paleta original"), /*#__PURE__*/React.createElement("div", {
+    className: "lf-agrup-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "lf-add-btn",
+    onClick: () => onGuardar(draft)
   }, /*#__PURE__*/React.createElement(Check, {
     size: 14
   }), " Guardar"), /*#__PURE__*/React.createElement("button", {

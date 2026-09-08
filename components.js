@@ -954,10 +954,20 @@ export function RowEntryResumen({
     className: "lf-entry-resumen-chevron"
   }, abierto ? "▲" : "▼")));
 }
+// `style` es el tema personalizado del jugador logueado (fondo de la app,
+// color de las tarjetas, color de acento) — ver "Personalizar tema" en Mi
+// cuenta y el useEffect que lo carga en menu.js. Son custom properties CSS
+// (--root-bg/--card-bg/--ui-accent) puestas inline acá arriba de todo, así
+// pisan el valor por defecto de cada regla en styles.css (que usa
+// var(--card-bg, #3D0A0A) etc. con ese mismo fallback) sin tener que tocar
+// ninguna otra tarjeta. Si el jugador no personalizó nada, `style` llega
+// vacío y se ve la paleta de siempre.
 export function Shell({
-  children
+  children,
+  style
 }) {
   return /*#__PURE__*/React.createElement("div", {
-    className: "lf-root"
+    className: "lf-root",
+    style: style
   }, children);
 }

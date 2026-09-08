@@ -181,7 +181,7 @@ export function AhorrosSection({
     }
   }, labelScope(seleccionada.scope)), e("button", {
     className: "lf-mini-del",
-    style: { color: "var(--ink)", opacity: 0.6 },
+    style: { color: "var(--paper)", opacity: 0.6 },
     onClick: () => iniciarEdicion(seleccionada),
     title: "Editar reserva"
   }, e(Pencil, {
@@ -192,7 +192,7 @@ export function AhorrosSection({
     className: "lf-bar-track",
     title: `${Math.round(Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}% de la meta`,
     style: {
-      background: `linear-gradient(to right, ${colorDe(seleccionada.scope) === "var(--c-diego)" ? "#33566C" : colorDe(seleccionada.scope) === "var(--c-yani)" ? "#8C3F52" : "#4F7A5B"} ${Math.max(3, Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}%, rgba(35,48,59,0.08) ${Math.max(3, Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}%)`
+      background: `linear-gradient(to right, ${colorDe(seleccionada.scope) === "var(--c-diego)" ? "#C31015" : colorDe(seleccionada.scope) === "var(--c-yani)" ? "#9C6408" : "#F2E5DC"} ${Math.max(3, Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}%, rgba(36,20,18,0.08) ${Math.max(3, Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}%)`
     }
   }) : null, e("div", {
     className: "lf-reserva-mov-form"
@@ -290,7 +290,7 @@ export function AhorrosSection({
       className: "lf-col-mini-track",
       title: `${Math.round(total / r.meta * 100)}% de la meta`,
       style: {
-        background: `linear-gradient(to right, ${r.scope === "diego" ? "#33566C" : r.scope === "yani" ? "#8C3F52" : "#4F7A5B"} ${pct}%, rgba(237,230,214,0.15) ${pct}%)`
+        background: `linear-gradient(to right, ${r.scope === "diego" ? "#C31015" : r.scope === "yani" ? "#9C6408" : "#F2E5DC"} ${pct}%, rgba(242,229,220,0.15) ${pct}%)`
       }
     }) : null, r.meta ? e("span", {
       className: "lf-reserva-meta-label"

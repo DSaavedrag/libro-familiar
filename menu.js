@@ -212,6 +212,39 @@ export function LibroFamiliar() {
     diego: null,
     yani: null
   });
+  // Tema personalizado de la app (fondo, color de las tarjetas, color de
+  // acento de los botones): igual que agrupaciones, cada jugador tiene el
+  // suyo guardado en Firebase bajo `tema:{person}` — si no eligió nada,
+  // queda en `null` y no se pisa la paleta por defecto (ver temaStyle más
+  // abajo y "Personalizar tema" en Mi cuenta).
+  const [temas, setTemas] = useState({
+    diego: null,
+    yani: null
+  });
+  // Tema visual: se aplica el del jugador que inició sesión de verdad
+  // (activePerson, no viewingPerson) — cada uno ve su propia paleta elegida
+  // sin importar de quién es el libro que está mirando. Si no personalizó
+  // nada (temas[activePerson] es null/undefined), temaStyle queda vacío y
+  // se ve la paleta por defecto de styles.css (sin pisar nada).
+  const miTema = (activePerson && temas[activePerson]) || null;
+  const temaStyle = miTema ? {
+    ...(miTema.rootBg ? { "--root-bg": miTema.rootBg } : {}),
+    ...(miTema.cardBg ? { "--card-bg": miTema.cardBg } : {}),
+    ...(miTema.accent ? { "--ui-accent": miTema.accent } : {})
+  } : undefined;
+  // El fondo de ".lf-root" ya se pisa solo (está adentro de <div id="root">,
+  // vía el style inline de arriba) — pero el "cuerpo" real de la página, el
+  // marco fino de afuera (html/body, ver index.html), vive FUERA de ese div
+  // y no recibe ese style. Se sincroniza acá a mano en <html> para que
+  // cambie junto con el fondo de la app cuando el jugador elige el suyo.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (miTema && miTema.rootBg) {
+      root.style.setProperty("--root-bg", miTema.rootBg);
+    } else {
+      root.style.removeProperty("--root-bg");
+    }
+  }, [miTema && miTema.rootBg]);
   const [settings, setSettings] = useState({
     diego: {
       pct: pctPorDefecto(CATEGORIAS_DEFAULT)
@@ -417,6 +450,22 @@ export function LibroFamiliar() {
         }
       }
       setAgrupaciones(nextAgrupaciones);
+      // Tema de cada jugador. A diferencia de agrupaciones, acá NO se
+      // siembra nada si no hay nada guardado: `null` significa "usar la
+      // paleta por defecto", no hace falta escribir eso en Firebase.
+      const nextTemas = {
+        diego: null,
+        yani: null
+      };
+      for (const pid of ["diego", "yani"]) {
+        try {
+          const r = await window.storage.get(`tema:${pid}`, true);
+          nextTemas[pid] = r ? JSON.parse(r.value) : null;
+        } catch {
+          nextTemas[pid] = null;
+        }
+      }
+      setTemas(nextTemas);
       const next = {
         diego: [],
         yani: []
@@ -550,6 +599,18 @@ export function LibroFamiliar() {
       ...settings[personId],
       pct: pctLimpio
     });
+  }
+  // Guarda el tema personalizado de un jugador (fondo de la app, color de
+  // las tarjetas, color de acento) — ver TemaEditor en pantalla-mi-cuenta.js.
+  // `tema` puede tener menos de las 3 claves (rootBg/cardBg/accent): la que
+  // falte simplemente no se guarda y sigue mostrando el valor por defecto.
+  async function saveTemaFor(personId, tema) {
+    setTemas(prev => ({
+      ...prev,
+      [personId]: tema
+    }));
+    const res = await storageSetRetry(`tema:${personId}`, JSON.stringify(tema), true);
+    if (!res) setErrorMsg("No se pudo guardar el tema. Probá de nuevo.");
   }
   // El cálculo del monto en pesos de un fijo, y la lógica de qué movimientos
   // hay que actualizar cuando se edita la lista, viven en logica-fijos.js.
@@ -991,7 +1052,7 @@ export function LibroFamiliar() {
     saldo: diego.ingresos + yani.ingresos - (diego.gastos + yani.gastos)
   };
   if (!sesionLista) {
-    return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement(Shell, { style: temaStyle }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate"
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate-card"
@@ -1002,7 +1063,7 @@ export function LibroFamiliar() {
     }, "Verificando tu sesión…"))));
   }
   if (!sesion) {
-    return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement(Shell, { style: temaStyle }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate"
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate-card"
@@ -1037,7 +1098,7 @@ export function LibroFamiliar() {
     }, loginError))));
   }
   if (buscandoJugador) {
-    return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement(Shell, { style: temaStyle }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate"
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate-card"
@@ -1047,7 +1108,7 @@ export function LibroFamiliar() {
   }
   if (!jugadorActual) {
     if (personKeysLibres === null) {
-      return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+      return /*#__PURE__*/React.createElement(Shell, { style: temaStyle }, /*#__PURE__*/React.createElement("div", {
         className: "lf-gate"
       }, /*#__PURE__*/React.createElement("div", {
         className: "lf-gate-card"
@@ -1056,7 +1117,7 @@ export function LibroFamiliar() {
       }, "Buscando tu perfil…"))));
     }
     if (personKeysLibres.length > 0) {
-      return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+      return /*#__PURE__*/React.createElement(Shell, { style: temaStyle }, /*#__PURE__*/React.createElement("div", {
         className: "lf-gate"
       }, /*#__PURE__*/React.createElement("div", {
         className: "lf-gate-card"
@@ -1085,7 +1146,7 @@ export function LibroFamiliar() {
         size: 13
       }), " Probar con otra cuenta"))));
     }
-    return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement(Shell, { style: temaStyle }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate"
     }, /*#__PURE__*/React.createElement("div", {
       className: "lf-gate-card"
@@ -1107,7 +1168,7 @@ export function LibroFamiliar() {
       size: 13
     }), " Probar con otra cuenta"))));
   }
-  return /*#__PURE__*/React.createElement(Shell, null, /*#__PURE__*/React.createElement("header", {
+  return /*#__PURE__*/React.createElement(Shell, { style: temaStyle }, /*#__PURE__*/React.createElement("header", {
     className: "lf-header"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lf-brand"
@@ -1360,6 +1421,8 @@ export function LibroFamiliar() {
     onSave: s => saveSettingsFor("diego", s),
     categorias: agrupaciones.diego || [],
     onSaveAgrupaciones: list => saveAgrupacionesFor("diego", list),
+    tema: temas.diego,
+    onSaveTema: t => saveTemaFor("diego", t),
     fijos: fijos.diego,
     onSaveFijos: list => saveFijosFor("diego", list),
     onCargarFijos: fijoId => cargarFijosDelMes("diego", fijoId),
@@ -1382,6 +1445,8 @@ export function LibroFamiliar() {
     onSave: s => saveSettingsFor("yani", s),
     categorias: agrupaciones.yani || [],
     onSaveAgrupaciones: list => saveAgrupacionesFor("yani", list),
+    tema: temas.yani,
+    onSaveTema: t => saveTemaFor("yani", t),
     fijos: fijos.yani,
     onSaveFijos: list => saveFijosFor("yani", list),
     onCargarFijos: fijoId => cargarFijosDelMes("yani", fijoId),

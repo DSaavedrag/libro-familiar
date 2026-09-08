@@ -1,26 +1,38 @@
       @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
       .lf-root {
-        --paper: #EDE6D6;
-        --paper-line: #DDD3BC;
-        --ink: #23303B;
-        --ink-soft: #5B6B75;
-        --diego: #33566C;
-        --yani: #8C3F52;
-        --c-diego: #33566C;
-        --c-yani: #8C3F52;
-        --c-ahorros: #4F7A5B;
+        /* Paleta sacada del logo (Líah): rojo/dorado sobre negro y blanco,
+           en vez de la crema/azul de antes. --paper y --paper-line siguen
+           siendo "el color claro" (fondo de tarjeta clara + texto claro
+           sobre fondo oscuro) y --ink/--ink-soft "el color oscuro" (texto
+           sobre tarjeta clara) — mismo rol de siempre, sólo recoloreados,
+           para no tener que retocar cada tarjeta una por una. */
+        --paper: #F2E5DC;
+        --paper-line: #E3D3C8;
+        --ink: #241412;
+        --ink-soft: #8A6F68;
+        --diego: #C31015;
+        --yani: #9C6408;
+        --c-diego: #C31015;
+        --c-yani: #9C6408;
+        --c-ahorros: var(--paper);
         --c-necesidades: #7A6A3F;
         --c-liah: #6B5490;
         --c-placeres: #B5502F;
         --pos: #4F7A5B;
-        --neg: #A5433A;
+        --neg: #C31015;
 
         font-family: 'IBM Plex Sans', sans-serif;
         color: var(--ink);
+        /* --root-bg, --card-bg y --ui-accent son personalizables por jugador
+           (ver "Personalizar tema" en Mi cuenta) — acá quedan sin valor fijo
+           para que gane el override inline si el jugador logueado eligió los
+           suyos; el fallback #1C0E0D es el look por defecto. La línea rayada
+           se calcula a partir de --root-bg para no tener que definir un
+           segundo color a mano. */
         background:
-          repeating-linear-gradient(var(--paper), var(--paper) 27px, var(--paper-line) 28px),
-          var(--paper);
+          repeating-linear-gradient(var(--root-bg, #1C0E0D), var(--root-bg, #1C0E0D) 27px, color-mix(in srgb, var(--root-bg, #1C0E0D) 85%, black) 28px),
+          var(--root-bg, #1C0E0D);
         border-radius: 14px;
         padding: 28px 24px 36px;
         max-width: 960px;
@@ -93,7 +105,7 @@
         border-radius: 999px;
         cursor: pointer;
       }
-      .lf-logout-btn:hover { background: rgba(165,67,58,0.1); color: var(--neg); border-color: var(--neg); }
+      .lf-logout-btn:hover { background: rgba(195,16,21,0.1); color: var(--neg); border-color: var(--neg); }
 
       .lf-viewing-other-note {
         font-size: 13px;
@@ -115,7 +127,7 @@
         gap: 6px;
         border: 1.5px solid var(--paper-line);
         background: transparent;
-        color: var(--ink);
+        color: var(--paper);
         font-family: inherit;
         font-size: 13px;
         font-weight: 600;
@@ -124,13 +136,16 @@
         cursor: pointer;
       }
       .lf-tab-btn.on {
-        background: var(--ink);
+        /* Antes usaba var(--ink) de fondo, casi el mismo tono que .lf-root:
+           se volvía invisible. Reusa el mismo rojo oscuro de .lf-col para
+           que se note claramente cuál pestaña está activa. */
+        background: var(--card-bg, #3D0A0A);
         color: var(--paper);
-        border-color: var(--ink);
+        border-color: var(--card-bg, #3D0A0A);
       }
 
-      .lf-ahorros { margin-top: 4px; }
-      .lf-ahorros-head h2 { margin: 0 0 14px; }
+      .lf-ahorros { margin-top: 4px; color: var(--paper); }
+      .lf-ahorros-head h2 { margin: 0 0 14px; color: var(--paper); }
       .lf-ahorros-totals {
         display: flex;
         flex-wrap: wrap;
@@ -151,7 +166,8 @@
         flex-direction: column;
         gap: 8px;
         text-align: left;
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 14px 16px;
@@ -178,7 +194,7 @@
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
-      .lf-reserva-meta-label { font-size: 12px; color: var(--ink); opacity: 0.65; }
+      .lf-reserva-meta-label { font-size: 12px; color: var(--paper); opacity: 0.65; }
       .lf-reserva-add-btn {
         display: flex;
         align-items: center;
@@ -186,7 +202,7 @@
         gap: 6px;
         border: 1.5px dashed var(--paper-line);
         background: transparent;
-        color: var(--ink);
+        color: var(--paper);
         border-radius: 14px;
         padding: 14px 16px;
         cursor: pointer;
@@ -198,23 +214,26 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 16px;
       }
       .lf-reserva-nueva-form input {
-        border: 1.5px solid var(--paper-line);
+        border: 1.5px solid rgba(237,230,214,0.3);
         border-radius: 8px;
         padding: 8px 10px;
         font-family: inherit;
         font-size: 14px;
-        background: var(--paper);
-        color: var(--ink);
+        background: rgba(237,230,214,0.08);
+        color: var(--paper);
       }
+      .lf-reserva-nueva-form input::placeholder { color: rgba(237,230,214,0.45); }
       .lf-reserva-nueva-btns { display: flex; gap: 8px; }
       .lf-reserva-detalle {
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 18px;
@@ -222,7 +241,7 @@
       .lf-reserva-back {
         border: none;
         background: transparent;
-        color: var(--ink);
+        color: var(--paper);
         opacity: 0.7;
         cursor: pointer;
         font-family: inherit;
@@ -244,23 +263,24 @@
         margin: 14px 0;
       }
       .lf-reserva-mov-form input {
-        border: 1.5px solid var(--paper-line);
+        border: 1.5px solid rgba(237,230,214,0.3);
         border-radius: 8px;
         padding: 8px 10px;
         font-family: inherit;
         font-size: 14px;
-        background: var(--paper);
-        color: var(--ink);
+        background: rgba(237,230,214,0.08);
+        color: var(--paper);
         flex: 1;
         min-width: 140px;
       }
+      .lf-reserva-mov-form input::placeholder { color: rgba(237,230,214,0.45); }
       .lf-reserva-mov-form button {
         display: flex;
         align-items: center;
         gap: 6px;
         border: none;
-        background: var(--ink);
-        color: var(--paper);
+        background: var(--ui-accent, #C31015);
+        color: #fff;
         border-radius: 8px;
         padding: 8px 14px;
         cursor: pointer;
@@ -316,6 +336,7 @@
       }
 
       .lf-monthnav {
+        color: var(--paper);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -327,7 +348,7 @@
       }
       .lf-monthnav button {
         border: none;
-        background: rgba(35,48,59,0.06);
+        background: rgba(237,230,214,0.1);
         border-radius: 999px;
         width: 30px;
         height: 30px;
@@ -335,9 +356,9 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        color: var(--ink);
+        color: var(--paper);
       }
-      .lf-monthnav button:hover { background: rgba(35,48,59,0.12); }
+      .lf-monthnav button:hover { background: rgba(237,230,214,0.18); }
 
       .lf-monthnav button.lf-reset-btn {
         width: auto;
@@ -353,21 +374,21 @@
         color: var(--ink-soft);
         margin-left: 6px;
       }
-      .lf-monthnav button.lf-reset-btn:hover { background: rgba(165,67,58,0.1); color: var(--neg); }
+      .lf-monthnav button.lf-reset-btn:hover { background: rgba(195,16,21,0.1); color: var(--neg); }
 
       .lf-reset-confirm {
         display: flex;
         align-items: flex-start;
         gap: 10px;
-        background: rgba(165,67,58,0.08);
-        border: 1.5px solid rgba(165,67,58,0.4);
+        background: rgba(195,16,21,0.08);
+        border: 1.5px solid rgba(195,16,21,0.4);
         border-radius: 10px;
         padding: 12px 14px;
         margin-bottom: 14px;
         color: var(--neg);
       }
       .lf-reset-confirm svg { flex: none; margin-top: 2px; }
-      .lf-reset-confirm p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); flex: 1; }
+      .lf-reset-confirm p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--paper); flex: 1; }
       .lf-reset-confirm-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
       .lf-reset-confirm-yes {
         background: var(--neg);
@@ -390,11 +411,11 @@
         font-size: 12px;
         cursor: pointer;
       }
-      .lf-reset-confirm-no:hover { background: rgba(255,255,255,0.5); }
+      .lf-reset-confirm-no:hover { background: var(--card-bg, #3D0A0A); }
 
       .lf-error {
-        background: rgba(165,67,58,0.1);
-        border: 1px solid rgba(165,67,58,0.35);
+        background: rgba(195,16,21,0.1);
+        border: 1px solid rgba(195,16,21,0.35);
         color: var(--neg);
         font-size: 13px;
         padding: 8px 12px;
@@ -403,12 +424,18 @@
       }
 
       .lf-form-card {
-        background: rgba(255,255,255,0.55);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1px solid var(--paper-line);
         border-radius: 12px;
         padding: 14px;
         margin-bottom: 22px;
       }
+      /* El botón "Registrar" (.lf-add-btn) normalmente usa var(--ink) de
+         fondo — funciona bien sobre una tarjeta clara, pero se hace invisible
+         acá adentro ahora que .lf-form-card es oscura. Mismo criterio que
+         .lf-save-budget dentro de .lf-col: botón claro sobre tarjeta oscura. */
+      .lf-form-card .lf-add-btn { background: var(--ui-accent, #C31015); color: #fff; }
       .lf-form-row {
         display: flex;
         gap: 10px;
@@ -437,7 +464,7 @@
         cursor: pointer;
         color: var(--ink-soft);
       }
-      .lf-toggle button.on:first-child { background: rgba(165,67,58,0.12); color: var(--neg); }
+      .lf-toggle button.on:first-child { background: rgba(195,16,21,0.12); color: var(--neg); }
       .lf-toggle button.on:last-child { background: rgba(79,122,91,0.14); color: var(--pos); }
 
       .lf-scope-toggle {
@@ -459,16 +486,21 @@
 
       .lf-input {
         font-family: 'IBM Plex Sans', sans-serif;
-        border: 1px solid var(--paper-line);
+        border: 1px solid rgba(237,230,214,0.3);
         border-radius: 8px;
         padding: 9px 12px;
         font-size: 14px;
-        background: #fff;
-        color: var(--ink);
+        background: rgba(237,230,214,0.08);
+        color: var(--paper);
         flex: 1;
         min-width: 0;
       }
-      .lf-input:focus { outline: 2px solid var(--diego); outline-offset: 1px; }
+      .lf-input::placeholder { color: rgba(237,230,214,0.45); }
+      /* La pantalla de login (.lf-gate-card) sigue siendo clara a propósito
+         — ahí el input tiene que verse como un input normal sobre blanco. */
+      .lf-gate-form .lf-input { background: #fff; color: var(--ink); border-color: var(--paper-line); }
+      .lf-gate-form .lf-input::placeholder { color: var(--ink-soft); }
+      .lf-input:focus { outline: 2px solid var(--ui-accent, var(--diego)); outline-offset: 1px; }
       .lf-input-monto {
         flex: 0 0 140px;
         font-family: 'IBM Plex Mono', monospace;
@@ -485,19 +517,25 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        border: 1px solid var(--paper-line);
-        background: #fff;
+        border: 1.5px solid rgba(237,230,214,0.25);
+        background: rgba(237,230,214,0.08);
         border-radius: 999px;
         padding: 6px 12px;
         font-size: 12.5px;
         cursor: pointer;
-        color: var(--ink-soft);
+        color: var(--paper);
+        opacity: 0.75;
       }
+      .lf-cat-pill:hover { opacity: 1; background: rgba(237,230,214,0.14); }
+      /* Seleccionada: relleno sólido con el color de la agrupación (no un
+         tinte pálido) para que se sienta intensa y presente, no apagada. */
       .lf-cat-pill.on {
         border-color: var(--accent);
-        color: var(--accent);
-        background: color-mix(in srgb, var(--accent) 10%, white);
-        font-weight: 600;
+        color: var(--paper);
+        background: var(--accent);
+        font-weight: 700;
+        opacity: 1;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
       }
 
       .lf-add-btn {
@@ -523,7 +561,14 @@
         justify-content: center;
         min-height: 360px;
       }
-      .lf-gate-card { text-align: center; }
+      .lf-gate-card {
+        text-align: center;
+        background: rgba(255,255,255,0.85);
+        border: 1.5px dashed var(--paper-line);
+        border-radius: 14px;
+        padding: 28px 24px;
+        max-width: 360px;
+      }
       .lf-gate-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
       .lf-gate-btn {
         font-family: 'Roboto Slab', serif;
@@ -559,7 +604,7 @@
         display: inline-block;
         font-family: 'IBM Plex Mono', monospace;
         font-size: 11px;
-        background: rgba(35,48,59,0.08);
+        background: rgba(36,20,18,0.08);
         border-radius: 6px;
         padding: 4px 8px;
         margin-top: 6px;
@@ -581,7 +626,8 @@
         margin-bottom: 0;
       }
       .lf-hogar {
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1.5px dashed var(--paper-line);
         border-radius: 12px;
         padding: 18px 20px;
@@ -591,11 +637,11 @@
         font-family: 'Roboto Slab', serif;
         font-size: 16px;
         font-weight: 700;
-        color: var(--ink);
+        color: var(--paper);
         margin: 0;
       }
-      .lf-edit-btn.lf-edit-btn-hogar { border-color: var(--ink); color: var(--ink); background: transparent; }
-      .lf-edit-btn.lf-edit-btn-hogar:hover { background: rgba(35,48,59,0.06); }
+      .lf-edit-btn.lf-edit-btn-hogar { border-color: var(--paper); color: var(--paper); background: transparent; }
+      .lf-edit-btn.lf-edit-btn-hogar:hover { background: rgba(36,20,18,0.06); }
       .lf-hogar-split {
         border-top: 1px solid var(--paper-line);
         border-bottom: 1px solid var(--paper-line);
@@ -663,8 +709,8 @@
         font-size: 10.5px;
         margin-top: 1px;
       }
-      .lf-fijo-cargar.lf-hogar-cargar { border-color: var(--ink); color: var(--ink); }
-      .lf-fijo-cargar.lf-hogar-cargar:hover:not(:disabled) { background: rgba(35,48,59,0.06); }
+      .lf-fijo-cargar.lf-hogar-cargar { border-color: var(--paper); color: var(--paper); }
+      .lf-fijo-cargar.lf-hogar-cargar:hover:not(:disabled) { background: rgba(36,20,18,0.06); }
       .lf-seam {
         width: 1px;
         background: repeating-linear-gradient(to bottom, var(--paper-line) 0 6px, transparent 6px 12px);
@@ -672,7 +718,11 @@
       }
       .lf-col {
         min-width: 0;
-        background: var(--ink);
+        /* Un rojo bien oscuro en vez de var(--ink) a secas — ahora que el
+           fondo de toda la app (.lf-root) también es casi negro, esta
+           tarjeta necesita su propio tono para no fundirse con el fondo. */
+        background: var(--card-bg, #3D0A0A);
+        border: 1px solid rgba(255,255,255,0.08);
         color: var(--paper);
         border-radius: 14px;
         padding: 20px;
@@ -718,7 +768,8 @@
         gap: 6px;
         margin-bottom: 10px;
         padding: 10px;
-        background: rgba(255,255,255,0.55);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1px solid var(--paper-line);
         border-radius: 8px;
       }
@@ -766,14 +817,14 @@
         width: 100%;
         height: 4px;
         border-radius: 999px;
-        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(35,48,59,0.12) var(--fill, 0%));
+        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
         margin: 6px 0 4px;
         cursor: pointer;
       }
       .lf-col-pct-slider::-webkit-slider-runnable-track {
         height: 4px;
         border-radius: 999px;
-        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(35,48,59,0.12) var(--fill, 0%));
+        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
       }
       .lf-col-pct-slider::-webkit-slider-thumb {
         -webkit-appearance: none;
@@ -799,7 +850,7 @@
       .lf-col-pct-slider::-moz-range-track {
         height: 4px;
         border-radius: 999px;
-        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(35,48,59,0.12) var(--fill, 0%));
+        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
       }
       .lf-col-pct-slider-wrap { flex-basis: 100%; }
       .lf-pct-ticks {
@@ -813,12 +864,12 @@
         top: 0;
         width: 1px;
         height: 4px;
-        background: rgba(35,48,59,0.25);
+        background: rgba(36,20,18,0.25);
         transform: translateX(-50%);
       }
       .lf-pct-tick-major {
         height: 7px;
-        background: rgba(35,48,59,0.45);
+        background: rgba(36,20,18,0.45);
       }
       .lf-col-cat-num-wrap { display: flex; flex-direction: column; align-items: flex-end; }
       .lf-col-cat-restante {
@@ -829,14 +880,14 @@
       .lf-base-note {
         font-size: 11.5px;
         color: var(--ink-soft);
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
         border: 1px solid var(--paper-line);
         border-radius: 8px;
         padding: 8px 10px;
         margin: 0 0 10px;
         line-height: 1.4;
       }
-      .lf-base-note strong { color: var(--ink); font-family: 'IBM Plex Mono', monospace; }
+      .lf-base-note strong { color: var(--paper); font-family: 'IBM Plex Mono', monospace; }
 
       .lf-tarjetas {
         border-top: 1px solid var(--paper-line);
@@ -848,12 +899,17 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
-        background: rgba(255,255,255,0.55);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1px solid var(--paper-line);
         border-radius: 8px;
         padding: 10px;
         margin-bottom: 10px;
       }
+      /* Mismo criterio que .lf-form-card: el botón "Guardar"/"Cargar" (.lf-add-btn,
+         acá combinado con .lf-tarjeta-submit) necesita un fondo distinto al de
+         la tarjeta oscura para no fundirse con ella. */
+      .lf-tarjeta-form .lf-add-btn { background: var(--ui-accent, #C31015); color: #fff; }
       .lf-tarjeta-form-row { display: flex; gap: 8px; align-items: flex-end; }
       .lf-tarjeta-monto { flex: 1; font-family: 'IBM Plex Mono', monospace; }
       .lf-tarjeta-cuotas { display: flex; flex-direction: column; gap: 3px; }
@@ -874,7 +930,7 @@
         padding: 5px 0;
       }
       .lf-tarjeta-item-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-      .lf-tarjeta-item-name { font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .lf-tarjeta-item-name { font-size: 12px; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .lf-tarjeta-item-sub { font-size: 10.5px; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; }
       .lf-tarjeta-item-cat { font-weight: 600; }
       .lf-tarjeta-item-split {
@@ -896,14 +952,14 @@
         border-radius: 6px;
         display: flex;
       }
-      .lf-tarjeta-icon-btn:hover { background: rgba(35,48,59,0.08); color: var(--ink); }
+      .lf-tarjeta-icon-btn:hover { background: rgba(36,20,18,0.08); color: var(--paper); }
       .lf-tarjeta-icon-btn:disabled { opacity: 0.5; cursor: default; }
       .lf-spin { animation: lf-spin-anim 0.9s linear infinite; }
       @keyframes lf-spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .lf-tarjeta-warn {
         font-size: 10.5px;
         color: var(--neg);
-        background: rgba(165,67,58,0.08);
+        background: rgba(195,16,21,0.08);
         border-radius: 6px;
         padding: 5px 8px;
         margin: 2px 0 4px;
@@ -926,7 +982,7 @@
         font-size: 13px;
         cursor: pointer;
       }
-      .lf-tarjeta-cancel:hover { background: rgba(255,255,255,0.6); }
+      .lf-tarjeta-cancel:hover { background: rgba(237,230,214,0.15); }
 
       .lf-tarjeta-check {
         display: flex;
@@ -949,7 +1005,7 @@
       .lf-tarjeta-modo-toggle button {
         flex: 1;
         border: none;
-        background: #fff;
+        background: rgba(237,230,214,0.1);
         color: var(--ink-soft);
         padding: 8px 10px;
         font-size: 12.5px;
@@ -978,13 +1034,14 @@
         cursor: pointer;
         padding: 2px 4px;
       }
-      .lf-etiquetas-manage-btn:hover { color: var(--ink); }
+      .lf-etiquetas-manage-btn:hover { color: var(--paper); }
       .lf-etiquetas-editor { display: flex; flex-direction: column; gap: 8px; }
       .lf-etiqueta-row {
         display: flex;
         align-items: center;
         gap: 8px;
-        background: rgba(255,255,255,0.55);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1px solid var(--paper-line);
         border-radius: 8px;
         padding: 8px;
@@ -1033,15 +1090,15 @@
         align-items: center;
         gap: 6px;
         border: none;
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
         color: var(--ink-soft);
         padding: 9px 10px;
         font-size: 11.5px;
         cursor: pointer;
         text-align: left;
       }
-      .lf-tarjeta-detalle-toggle:hover { background: rgba(255,255,255,0.8); }
-      .lf-tarjeta-detalle-toggle strong { color: var(--ink); font-family: 'IBM Plex Mono', monospace; }
+      .lf-tarjeta-detalle-toggle:hover { background: rgba(237,230,214,0.15); }
+      .lf-tarjeta-detalle-toggle strong { color: var(--paper); font-family: 'IBM Plex Mono', monospace; }
       .lf-tarjeta-detalle-arrow { margin-left: auto; font-size: 9px; }
       .lf-tarjeta-detalle-body { padding: 8px 10px 10px; border-top: 1px solid var(--paper-line); }
       .lf-tarjeta-detalle-cat { margin-bottom: 8px; }
@@ -1054,7 +1111,7 @@
         font-weight: 600;
         margin-bottom: 3px;
       }
-      .lf-tarjeta-detalle-cat-total { margin-left: auto; font-family: 'IBM Plex Mono', monospace; color: var(--ink); }
+      .lf-tarjeta-detalle-cat-total { margin-left: auto; font-family: 'IBM Plex Mono', monospace; color: var(--paper); }
       .lf-tarjeta-detalle-item {
         display: flex;
         justify-content: space-between;
@@ -1075,7 +1132,7 @@
         font: inherit;
         border-radius: 4px;
       }
-      .lf-tarjeta-detalle-item-toggle:hover { background: rgba(35,48,59,0.06); }
+      .lf-tarjeta-detalle-item-toggle:hover { background: rgba(36,20,18,0.06); }
       .lf-tarjeta-detalle-item-count { opacity: 0.7; }
       .lf-tarjeta-detalle-item-list {
         padding: 2px 0 4px 18px;
@@ -1095,7 +1152,7 @@
       }
       .lf-moneda-toggle button {
         border: none;
-        background: #fff;
+        background: rgba(237,230,214,0.1);
         color: var(--ink-soft);
         padding: 0 8px;
         font-size: 11px;
@@ -1123,7 +1180,8 @@
       .lf-fijo-item-tarjeta-icon { margin-left: 4px; vertical-align: -1px; color: var(--ink-soft); }
 
       .lf-cotizacion {
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1px solid var(--paper-line);
         border-radius: 10px;
         padding: 10px 12px;
@@ -1139,7 +1197,7 @@
         font-family: 'IBM Plex Mono', monospace;
         font-size: 15px;
         font-weight: 600;
-        color: var(--ink);
+        color: var(--paper);
       }
       .lf-cotizacion-edit-row { display: flex; align-items: center; gap: 4px; }
       .lf-cotizacion-prefix, .lf-cotizacion-suffix {
@@ -1154,14 +1212,14 @@
         align-items: center;
         gap: 5px;
         border: 1px solid var(--paper-line);
-        background: #fff;
+        background: rgba(237,230,214,0.1);
         color: var(--ink-soft);
         border-radius: 999px;
         padding: 6px 12px;
         font-size: 11.5px;
         cursor: pointer;
       }
-      .lf-cotizacion-live-btn:hover:not(:disabled) { background: rgba(255,255,255,0.9); color: var(--ink); }
+      .lf-cotizacion-live-btn:hover:not(:disabled) { background: rgba(237,230,214,0.2); color: var(--paper); }
       .lf-cotizacion-live-btn:disabled { opacity: 0.6; cursor: default; }
       .lf-cotizacion-warn {
         width: 100%;
@@ -1181,7 +1239,7 @@
         font-family: 'Roboto Slab', serif;
         font-size: 13px;
         font-weight: 700;
-        color: var(--ink);
+        color: var(--paper);
         margin: 0;
       }
       .lf-fijos-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
@@ -1235,7 +1293,8 @@
 
       .lf-fijos-editor { display: flex; flex-direction: column; gap: 12px; }
       .lf-fijo-row {
-        background: rgba(255,255,255,0.55);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1px solid var(--paper-line);
         border-radius: 8px;
         padding: 8px;
@@ -1257,7 +1316,7 @@
         padding: 4px;
         border-radius: 6px;
       }
-      .lf-fijo-del:hover { background: rgba(165,67,58,0.1); }
+      .lf-fijo-del:hover { background: rgba(195,16,21,0.1); }
 
       .lf-fijo-cat { display: flex; flex-direction: column; gap: 4px; }
       .lf-fijo-cat-slider {
@@ -1266,13 +1325,13 @@
         width: 100%;
         height: 4px;
         border-radius: 999px;
-        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(35,48,59,0.12) var(--fill, 0%));
+        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
         cursor: pointer;
       }
       .lf-fijo-cat-slider::-webkit-slider-runnable-track {
         height: 4px;
         border-radius: 999px;
-        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(35,48,59,0.12) var(--fill, 0%));
+        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
       }
       .lf-fijo-cat-slider::-webkit-slider-thumb {
         -webkit-appearance: none;
@@ -1298,7 +1357,7 @@
       .lf-fijo-cat-slider::-moz-range-track {
         height: 4px;
         border-radius: 999px;
-        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(35,48,59,0.12) var(--fill, 0%));
+        background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
       }
       .lf-fijo-cat-labels { display: flex; justify-content: space-between; padding: 0 1px; }
       .lf-fijo-cat-label {
@@ -1325,11 +1384,11 @@
         font-size: 12px;
         cursor: pointer;
       }
-      .lf-fijo-add:hover { background: rgba(255,255,255,0.5); }
+      .lf-fijo-add:hover { background: var(--card-bg, #3D0A0A); }
       .lf-col-mini-track {
         flex-basis: 100%;
         height: 4px;
-        background: rgba(35,48,59,0.08);
+        background: rgba(36,20,18,0.08);
         border-radius: 999px;
         overflow: hidden;
         margin-top: -1px;
@@ -1383,7 +1442,7 @@
          desplegar los movimientos uno por uno, igual que las etiquetas de
          tarjeta de arriba — para no depender solo del total. */
       .lf-col-cat-row-clickable { cursor: pointer; border-radius: 6px; }
-      .lf-col-cat-row-clickable:hover { background: rgba(35,48,59,0.04); }
+      .lf-col-cat-row-clickable:hover { background: rgba(36,20,18,0.04); }
       .lf-col-cat-arrow { font-size: 9px; opacity: 0.6; margin-left: 2px; }
       .lf-col-cat-mov-list {
         flex: 1 1 100%;
@@ -1394,7 +1453,23 @@
         gap: 4px;
       }
 
-      .lf-col-list { max-height: 220px; overflow-y: auto; align-content: start; }
+      .lf-col-list {
+        max-height: 220px;
+        overflow-y: auto;
+        align-content: start;
+        /* La barra de scroll del navegador es clara por defecto y desentona
+           con la tarjeta oscura de Movimientos — se estiliza acá para Chrome/
+           Edge/Safari (::-webkit-scrollbar) y Firefox (scrollbar-color). */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(237,230,214,0.35) transparent;
+      }
+      .lf-col-list::-webkit-scrollbar { width: 8px; }
+      .lf-col-list::-webkit-scrollbar-track { background: transparent; }
+      .lf-col-list::-webkit-scrollbar-thumb {
+        background: rgba(237,230,214,0.35);
+        border-radius: 999px;
+      }
+      .lf-col-list::-webkit-scrollbar-thumb:hover { background: rgba(237,230,214,0.5); }
       .lf-empty { font-size: 12.5px; color: var(--ink-soft); font-style: italic; }
 
       /* Encabezado de cada agrupación dentro de "Movimientos" — ocupa todo el
@@ -1408,7 +1483,7 @@
         font-family: 'Roboto Slab', serif;
         font-weight: 700;
         font-size: 12px;
-        color: var(--ink);
+        color: var(--paper);
         padding-bottom: 3px;
         margin-top: 10px;
         border-bottom: 1px solid var(--paper-line);
@@ -1427,7 +1502,8 @@
         justify-content: space-between;
         gap: 8px;
         padding: 6px 8px;
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border-radius: 6px;
       }
       .lf-entry-pagado { opacity: 0.6; }
@@ -1438,7 +1514,7 @@
         text-align: left;
         cursor: pointer;
       }
-      .lf-entry-resumen:hover { background: rgba(255,255,255,0.8); }
+      .lf-entry-resumen:hover { background: rgba(237,230,214,0.15); }
       .lf-entry-resumen-count {
         font-size: 10.5px;
         color: var(--ink-soft);
@@ -1475,7 +1551,7 @@
         border-radius: 4px;
         display: flex;
       }
-      .lf-entry-del:hover { opacity: 1; color: var(--neg); background: rgba(165,67,58,0.1); }
+      .lf-entry-del:hover { opacity: 1; color: var(--neg); background: rgba(195,16,21,0.1); }
       .lf-entry-del-confirm-yes, .lf-entry-del-confirm-no {
         border: none;
         cursor: pointer;
@@ -1486,7 +1562,7 @@
       .lf-entry-del-confirm-yes { background: var(--neg); color: #fff; }
       .lf-entry-del-confirm-yes:hover { opacity: 0.85; }
       .lf-entry-del-confirm-no { background: transparent; border: 1px solid var(--paper-line); color: var(--ink-soft); }
-      .lf-entry-del-confirm-no:hover { background: rgba(255,255,255,0.5); }
+      .lf-entry-del-confirm-no:hover { background: var(--card-bg, #3D0A0A); }
       .lf-pagado-btn {
         display: flex;
         align-items: center;
@@ -1500,7 +1576,7 @@
         cursor: pointer;
         white-space: nowrap;
       }
-      .lf-pagado-btn:hover { background: rgba(255,255,255,0.6); }
+      .lf-pagado-btn:hover { background: rgba(237,230,214,0.15); }
       .lf-pagado-btn.on {
         border-color: var(--pos);
         color: var(--pos);
@@ -1508,7 +1584,8 @@
       }
 
       .lf-familiar {
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1.5px dashed var(--paper-line);
         border-radius: 12px;
         padding: 20px;
@@ -1525,7 +1602,7 @@
         font-size: 16px;
         font-weight: 700;
         margin: 0;
-        color: var(--ink);
+        color: var(--paper);
       }
       .lf-edit-btn {
         display: flex;
@@ -1533,13 +1610,13 @@
         gap: 5px;
         background: transparent;
         border: 1px solid var(--paper-line);
-        color: var(--ink);
+        color: var(--paper);
         border-radius: 999px;
         padding: 5px 11px;
         font-size: 11.5px;
         cursor: pointer;
       }
-      .lf-edit-btn:hover { background: rgba(35,48,59,0.06); }
+      .lf-edit-btn:hover { background: rgba(36,20,18,0.06); }
 
       .lf-familiar-totals {
         display: flex;
@@ -1553,11 +1630,11 @@
 
       .lf-cat-bars { display: flex; flex-direction: column; gap: 10px; }
       .lf-cat-bar-row { display: flex; align-items: center; gap: 10px; }
-      .lf-cat-bar-label { display: flex; align-items: center; gap: 6px; width: 100px; flex: none; font-size: 12.5px; color: var(--ink); }
+      .lf-cat-bar-label { display: flex; align-items: center; gap: 6px; width: 100px; flex: none; font-size: 12.5px; color: var(--paper); }
       .lf-bar-track {
         flex: 1;
         height: 8px;
-        background: rgba(35,48,59,0.08);
+        background: rgba(36,20,18,0.08);
         border-radius: 999px;
         overflow: hidden;
       }
@@ -1655,15 +1732,17 @@
       .lf-col .lf-col-pct-slider::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(237,230,214,0.18) var(--fill, 0%)); }
       .lf-col .lf-col-pct-slider::-moz-range-track { background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(237,230,214,0.18) var(--fill, 0%)); }
       /* De "Gastos fijos" para abajo, ya no es parte de la tarjeta oscura .lf-col:
-         es una tarjeta hermana propia, con la paleta clara de siempre (igual que Hogar/Vista grupal). */
+         es una tarjeta hermana propia — pero con la misma paleta oscura que .lf-col
+         (igual que Hogar/Vista grupal), no la clara de antes. */
       .lf-col-outer-light {
-        background: rgba(255,255,255,0.5);
+        background: var(--card-bg, #3D0A0A);
+        color: var(--paper);
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 20px;
         margin-top: 20px;
       }
-      .lf-movs-title { font-size: 15px; margin: 18px 0 10px; color: var(--ink); }
+      .lf-movs-title { font-size: 15px; margin: 18px 0 10px; color: var(--paper); }
 
       /* Contorno rojo cuando una barra de categoría se pasó del límite */
       .lf-bar-exceeded { outline: 3px solid var(--neg); outline-offset: 3px; border-radius: 999px; }
