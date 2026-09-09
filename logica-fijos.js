@@ -17,12 +17,19 @@ export function montoArsDeFijo(item, cotizacionDolar) {
 
 // Si algún fijo de `list` ya tiene un movimiento cargado este mes (por
 // fijoId), lo actualiza con los valores nuevos (nombre/monto/categoría
-// pueden haber cambiado al editar la lista). Devuelve null si no había nada
-// que actualizar, para que quien llama sepa que no hace falta persistir.
+// pueden haber cambiado al editar la lista, o cambió la cotización si es en
+// USD). Devuelve null si no había nada que actualizar, para que quien llama
+// sepa que no hace falta persistir.
+//
+// Un movimiento ya marcado "pagado" queda CONGELADO: no se sincroniza más,
+// se queda con el monto que tenía al momento de pagarlo. Así es como se
+// sabe el saldo real — mientras no está pagado, sigue el valor en vivo del
+// fijo (y de la cotización si es en USD); en cuanto se paga, ese fue el
+// monto final.
 export function entriesActualizadasPorFijos(entries, list, cotizacionDolar) {
   let changed = false;
   const next = entries.map(e => {
-    if (!e.fijoId) return e;
+    if (!e.fijoId || e.pagado) return e;
     const item = list.find(f => f.id === e.fijoId);
     if (!item) return e;
     changed = true;
@@ -33,8 +40,7 @@ export function entriesActualizadasPorFijos(entries, list, cotizacionDolar) {
       descripcion: item.nombre || e.descripcion,
       montoUSD: item.moneda === "USD" ? Number(item.monto) || 0 : undefined,
       cotizacionUsada: item.moneda === "USD" ? Number(cotizacionDolar) || 0 : undefined,
-      esTarjeta: Boolean(item.esTarjeta),
-      pagado: item.esTarjeta ? e.pagado ?? false : e.pagado
+      esTarjeta: Boolean(item.esTarjeta)
     };
   });
   return changed ? next : null;
@@ -42,11 +48,11 @@ export function entriesActualizadasPorFijos(entries, list, cotizacionDolar) {
 
 // Igual que entriesActualizadasPorFijos, pero para los fijos del Hogar
 // (reparten el monto entre Diego/Yani según `split`, en vez de ser 100% de
-// una sola persona).
+// una sola persona). Misma regla de congelado una vez pagado.
 export function entriesActualizadasPorHogar(entries, list, split) {
   let changed = false;
   const next = entries.map(e => {
-    if (!e.hogarId) return e;
+    if (!e.hogarId || e.pagado) return e;
     const item = list.find(f => f.id === e.hogarId);
     if (!item) return e;
     changed = true;
@@ -61,15 +67,20 @@ export function entriesActualizadasPorHogar(entries, list, split) {
   return changed ? next : null;
 }
 
-// Arma los movimientos nuevos para "Cargar en este mes" de los fijos
-// personales que todavía no tengan un movimiento cargado este mes. Devuelve
-// un array vacío si no hay nada pendiente.
+// Arma los movimientos nuevos de los fijos personales que todavía no tengan
+// un movimiento cargado este mes. Ahora esto se dispara solo (ver el
+// useEffect en menu.js) apenas hay un fijo sin su movimiento del mes, así
+// nunca hace falta acordarse de "cargarlo" a mano y no se escapa ningún
+// gasto. Devuelve un array vacío si no hay nada pendiente.
 //
 // `soloId`: si se pasa, sólo arma el movimiento de ESE fijo (si está
-// pendiente) en vez de todos los pendientes — es lo que usa el botón
-// "Cargar" de una fila individual, para poder cargar servicios sin esperar
-// a tener el monto del alquiler, por ejemplo. Sin `soloId` se comporta igual
-// que siempre (carga todos los pendientes de una).
+// pendiente) en vez de todos los pendientes — lo sigue usando el botón
+// "Cargar" manual de una fila individual como respaldo. Sin `soloId` se
+// comporta igual que siempre (carga todos los pendientes de una).
+//
+// Todos arrancan con `pagado: false` (antes sólo los marcados "es tarjeta"
+// tenían este campo) — así cualquier fijo, no sólo los de tarjeta, se puede
+// marcar como pagado para congelar su monto (ver entriesActualizadasPorFijos).
 export function armarEntriesFijosFaltantes({
   list,
   entries,
@@ -92,14 +103,15 @@ export function armarEntriesFijosFaltantes({
     montoUSD: f.moneda === "USD" ? Number(f.monto) || 0 : undefined,
     cotizacionUsada: f.moneda === "USD" ? Number(cotizacionDolar) || 0 : undefined,
     esTarjeta: Boolean(f.esTarjeta),
-    pagado: f.esTarjeta ? false : undefined,
+    pagado: false,
     ts: now - i
   }));
 }
 
 // Igual que armarEntriesFijosFaltantes, pero para los fijos del Hogar —
 // genera DOS movimientos por fijo (uno para Diego, uno para Yani),
-// repartidos según `split`. También acepta `soloId` con el mismo sentido.
+// repartidos según `split`. También acepta `soloId` con el mismo sentido, y
+// arranca en `pagado: false` por la misma razón.
 export function armarEntriesHogarFaltantes({
   fijosHogar,
   entries,
@@ -121,6 +133,7 @@ export function armarEntriesHogarFaltantes({
         monto: (Number(f.monto) || 0) * (Number(split[pid]) || 0) / 100,
         descripcion: `${f.nombre || "Gasto fijo"} (hogar)`,
         hogarId: f.id,
+        pagado: false,
         ts: now - i
       });
     });

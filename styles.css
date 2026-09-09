@@ -28,10 +28,13 @@
            (ver "Personalizar tema" en Mi cuenta) — acá quedan sin valor fijo
            para que gane el override inline si el jugador logueado eligió los
            suyos; el fallback #1C0E0D es el look por defecto. La línea rayada
-           se calcula a partir de --root-bg para no tener que definir un
-           segundo color a mano. */
+           se dibuja con una franja negra semitransparente ENCIMA de
+           --root-bg (en vez de calcular un color mezclado con color-mix,
+           que algunos navegadores de celular todavía no soportan bien y
+           terminaba rompiendo el fondo entero) — funciona igual sea cual
+           sea el --root-bg elegido, y es compatible en cualquier navegador. */
         background:
-          repeating-linear-gradient(var(--root-bg, #1C0E0D), var(--root-bg, #1C0E0D) 27px, color-mix(in srgb, var(--root-bg, #1C0E0D) 85%, black) 28px),
+          repeating-linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0) 27px, rgba(0,0,0,0.22) 28px),
           var(--root-bg, #1C0E0D);
         border-radius: 14px;
         padding: 28px 24px 36px;
@@ -110,7 +113,7 @@
       .lf-viewing-other-note {
         font-size: 13px;
         color: var(--ink-soft);
-        background: color-mix(in srgb, var(--ink-soft) 8%, transparent);
+        background: rgba(138,111,104,0.08);
         border-radius: 10px;
         padding: 10px 14px;
         margin-bottom: 14px;
@@ -535,7 +538,7 @@
         background: var(--accent);
         font-weight: 700;
         opacity: 1;
-        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+        box-shadow: 0 0 0 3px rgba(255,255,255,0.18);
       }
 
       .lf-add-btn {
@@ -672,6 +675,14 @@
         border-radius: 999px;
         background: linear-gradient(to right, var(--c-diego) var(--fill,50%), var(--c-yani) var(--fill,50%));
         cursor: pointer;
+        /* Sin esto, en celular el dedo sobre la barrita queda ambiguo entre
+           "mover el slider" y "deslizar de página" (el carrusel de Resumen/
+           Tarjetas/Movimientos/Grupo también se arrastra horizontal) — el
+           navegador termina agarrando el gesto para el carrusel en vez de
+           para la barrita. touch-action: none le dice "este elemento se
+           encarga solo de su propio gesto, no dejes que el de afuera lo
+           compita". */
+        touch-action: none;
       }
       .lf-hogar-split-slider::-webkit-slider-thumb {
         -webkit-appearance: none;
@@ -820,6 +831,9 @@
         background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
         margin: 6px 0 4px;
         cursor: pointer;
+        /* Igual que .lf-hogar-split-slider: evita el conflicto entre mover
+           esta barrita y deslizar de página en celular. */
+        touch-action: none;
       }
       .lf-col-pct-slider::-webkit-slider-runnable-track {
         height: 4px;
@@ -1327,6 +1341,9 @@
         border-radius: 999px;
         background: linear-gradient(to right, var(--accent) var(--fill, 0%), rgba(36,20,18,0.12) var(--fill, 0%));
         cursor: pointer;
+        /* Igual que .lf-hogar-split-slider: evita el conflicto entre mover
+           esta barrita y deslizar de página en celular. */
+        touch-action: none;
       }
       .lf-fijo-cat-slider::-webkit-slider-runnable-track {
         height: 4px;
@@ -1779,21 +1796,27 @@
           display: flex;
           align-items: flex-start;
           overflow-x: auto;
+          /* Le aclara al navegador que este contenedor sólo gestiona el gesto
+             horizontal (pasar de pantalla) — un dedo que arranca acá con
+             intención de bajar la página no debería quedar nunca en duda. */
+          touch-action: pan-x;
           /* OJO: "overflow-y: visible" NO sirve acá — el navegador lo fuerza a
-             "auto" apenas overflow-x no es "visible" (regla de la spec de CSS,
-             no depende de si hay o no contenido que desborde). Se probó
-             "hidden" para evitar ese scroll interno, pero eso ROMPIÓ un montón
-             de funcionalidad (Parametrizar, tachos, desplegar tarjetas/detalle
-             de categoría): cualquier contenido que crece de golpe (un
-             desplegable, un formulario que aparece) queda directamente
-             INVISIBLE E INALCANZABLE hasta que el JS de abajo recalcula la
-             altura — con "hidden" ese instante de desfasaje corta el contenido
-             en vez de solo generar un scroll molesto. Por eso quedó en "auto":
-             mismo comportamiento que el navegador ya forzaba antes, pero
-             degrada mejor (scrolleable un instante en vez de invisible). El
-             `el.scrollTop = 0` del useEffect de "altura del carrusel" en
-             menu.js es el que evita que ese scroll interno quede atascado. */
-          overflow-y: auto;
+             "auto"/"hidden" apenas overflow-x no es "visible" (regla de la
+             spec de CSS, no depende de si hay o no contenido que desborde).
+             En algún momento esto quedó en "auto" porque "hidden" cortaba
+             contenido que crecía de golpe (un desplegable, un formulario) y
+             el recalculo de altura de acá abajo (menu.js, useEffect de
+             "altura del carrusel") todavía sólo corría en scroll/resize, no
+             apenas cambiaba el contenido — con "auto" al menos quedaba
+             scrolleable en vez de invisible, pero ese scroll interno
+             (además del de la página entera) es justo lo que generaba
+             "tirones" al tocar una tarjeta para bajar la pantalla. Ahora que
+             ese mismo useEffect también usa ResizeObserver (recalcula apenas
+             el contenido visible cambia de tamaño, no sólo al hacer scroll),
+             ya no hace falta el margen de "auto": con "hidden" el contenedor
+             no tiene scroll propio y todo el desplazamiento vertical es
+             siempre el de la página, sin competir con nada. */
+          overflow-y: hidden;
           scroll-snap-type: x mandatory;
           -webkit-overflow-scrolling: touch;
           scroll-behavior: smooth;
@@ -1815,6 +1838,11 @@
           width: 100%;
           min-width: 0;
           scroll-snap-align: start;
+          /* Sin esto, un swipe rápido puede "saltar" de la página 1 directo
+             a la última en vez de frenar en la 2 — scroll-snap-stop obliga
+             al navegador a parar en cada pantalla una por una, sea cual sea
+             la velocidad del gesto. Pedido explícito de Diego. */
+          scroll-snap-stop: always;
           margin-bottom: 0;
         }
         .lf-pct-ticks { display: none; } /* no entran cómodas en celular, pedido explícito de Diego */

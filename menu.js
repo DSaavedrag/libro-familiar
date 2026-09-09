@@ -425,6 +425,62 @@ export function LibroFamiliar() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [month, refreshEntriesSilent]);
+
+  // Gastos fijos (personales y de Hogar): ya no hace falta "Cargar en este
+  // mes" a mano. Apenas hay un fijo sin su movimiento correspondiente en el
+  // mes actual, este efecto lo crea solo — así nunca se "escapa" un gasto
+  // por olvidarse de cargarlo. Y mientras el movimiento no esté marcado
+  // "pagado", su monto/categoría se mantiene sincronizado con la definición
+  // del fijo (nombre, monto, categoría) y con la cotización del día si es en
+  // USD — en cuanto se paga, queda congelado en ese valor: así es como se
+  // sabe el saldo real disponible en cualquier momento.
+  //
+  // No depende de `entries` a propósito (sólo lo lee): si dependiera, cada
+  // persistEntries que dispara volvería a correr el efecto en un ciclo. Al
+  // no estar en las dependencias, sólo se re-evalúa cuando cambia algo que
+  // puede requerir crear o resincronizar movimientos de fijos (la lista de
+  // fijos, el reparto del hogar, la cotización, o el mes) — que es
+  // exactamente cuándo hace falta.
+  useEffect(() => {
+    if (loading) return;
+    let next = entries;
+    let changed = false;
+    for (const pid of ["diego", "yani"]) {
+      const nuevas = armarEntriesFijosFaltantes({
+        list: fijos[pid] || [],
+        entries: next,
+        personId: pid,
+        cotizacionDolar
+      });
+      if (nuevas.length > 0) {
+        next = [...nuevas, ...next];
+        changed = true;
+      }
+    }
+    const nuevasHogar = armarEntriesHogarFaltantes({
+      fijosHogar,
+      entries: next,
+      split: splitHogar
+    });
+    if (nuevasHogar.length > 0) {
+      next = [...nuevasHogar, ...next];
+      changed = true;
+    }
+    const todosFijos = [...(fijos.diego || []), ...(fijos.yani || [])];
+    const actualizadasFijos = entriesActualizadasPorFijos(next, todosFijos, cotizacionDolar);
+    if (actualizadasFijos) {
+      next = actualizadasFijos;
+      changed = true;
+    }
+    const actualizadasHogar = entriesActualizadasPorHogar(next, fijosHogar, splitHogar);
+    if (actualizadasHogar) {
+      next = actualizadasHogar;
+      changed = true;
+    }
+    if (changed) persistEntries(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, month, fijos, fijosHogar, splitHogar, cotizacionDolar]);
+
   useEffect(() => {
     (async () => {
       // Agrupaciones de cada jugador. Si todavía no tiene ninguna guardada
