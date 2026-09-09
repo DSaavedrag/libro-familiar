@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp, LogOut } from "lucide-react";
 import { PERSONAS, fmt, CATEGORIAS_DEFAULT, pctPorDefecto, iconoDe, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
-import { storageSetRetry, fetchCotizacionLive, arrayAMapaPorId, mapaAArray } from "./storage.js";
+import { storageSetRetry, storageUpdateRetry, fetchCotizacionLive, arrayAMapaPorId, mapaAArray } from "./storage.js";
 import { Shell, EtiquetasTarjetaPicker, CotizacionWidget } from "./components.js";
 import { PersonColumn } from "./pantalla-mi-cuenta.js";
 import { AhorrosSection } from "./pantalla-ahorros.js";
@@ -629,8 +629,32 @@ export function LibroFamiliar() {
     })();
   }, []);
   async function persistEntries(next) {
+    // Manda solo los movimientos que cambiaron de verdad (agregados, editados
+    // o borrados) como una actualización parcial (PATCH), en vez de
+    // reemplazar el mes entero (PUT) — así Firebase evalúa el permiso de
+    // cada movimiento por separado (el tuyo sí, el de otro jugador no, salvo
+    // que sea de hogar). Mandar el mes completo con PUT queda bloqueado por
+    // la regla de seguridad sin importar qué cambió realmente.
+    const anteriores = new Map(entries.map(e => [e.id, e]));
+    const nuevos = new Map(next.map(e => [e.id, e]));
+    const patch = {};
+    let hayCambios = false;
+    for (const [id, entry] of nuevos) {
+      const previo = anteriores.get(id);
+      if (!previo || JSON.stringify(previo) !== JSON.stringify(entry)) {
+        patch[id] = entry;
+        hayCambios = true;
+      }
+    }
+    for (const id of anteriores.keys()) {
+      if (!nuevos.has(id)) {
+        patch[id] = null; // borrado
+        hayCambios = true;
+      }
+    }
     setEntries(next);
-    const res = await storageSetRetry(`entries:${month}`, JSON.stringify(arrayAMapaPorId(next)), true);
+    if (!hayCambios) return true; // nada que mandar (ej. no-op)
+    const res = await storageUpdateRetry(`entries:${month}`, JSON.stringify(patch), true);
     if (!res) {
       setErrorMsg("No se pudo guardar el movimiento. Probá de nuevo.");
       return false;

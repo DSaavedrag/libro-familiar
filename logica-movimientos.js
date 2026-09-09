@@ -7,7 +7,7 @@
 // tocan el estado de la app — reciben lo que necesitan como parámetros y
 // devuelven el resultado; quien las llama (menu.js) decide qué hacer con eso.
 
-import { storageSetRetry, arrayAMapaPorId, mapaAArray } from "./storage.js";
+import { storageUpdateRetry, arrayAMapaPorId } from "./storage.js";
 
 // Arma el movimiento nuevo a partir del formulario de carga (form de
 // menu.js), para el caso "normal" (ingreso, gasto suelto, o consumo de
@@ -64,14 +64,10 @@ export async function escribirEntriesEnMes({
   if (mKey === month) {
     return await persistEntries([...newEntries, ...entries.filter(e => !ids.has(e.id))]);
   }
-  let existing = [];
-  try {
-    const r = await window.storage.get(`entries:${mKey}`, true);
-    existing = r ? mapaAArray(JSON.parse(r.value)) : [];
-  } catch {
-    existing = [];
-  }
-  const res = await storageSetRetry(`entries:${mKey}`, JSON.stringify(arrayAMapaPorId([...newEntries, ...existing.filter(e => !ids.has(e.id))])), true);
+  // Mes distinto al actual (ej. cuotas futuras): no hace falta traer lo que
+  // ya había ahí ni recalcular la lista completa — PATCH solo toca los ids
+  // que se le pasan, así que alcanza con mandar exactamente los nuevos.
+  const res = await storageUpdateRetry(`entries:${mKey}`, JSON.stringify(arrayAMapaPorId(newEntries)), true);
   return Boolean(res);
 }
 

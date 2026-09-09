@@ -57,7 +57,15 @@ import { LibroFamiliar } from "./menu.js";
 // (ver database.rules.json). Sin ese token, las reglas tratan el pedido como
 // anónimo y lo rechazan — así es como se cierra el "cualquiera con el link edita
 // cualquier cosa" que tenía la app hasta ahora.
+//
+// "authStateReady()" espera a que Firebase termine de confirmar si hay una
+// sesión guardada o no (tarda una fracción de segundo apenas arranca la
+// página). Sin este espera, algunos pedidos que se disparan apenas monta la
+// app (ver menu.js) salían ANTES de que "auth.currentUser" se terminara de
+// completar, y Firebase los trataba como anónimos y los rechazaba — aunque
+// la persona sí estuviera logueada.
 async function tokenDeSesion() {
+  if (auth.authStateReady) await auth.authStateReady();
   return auth.currentUser ? await auth.currentUser.getIdToken() : null;
 }
 
@@ -95,6 +103,33 @@ window.storage = {
       return true;
     } catch (e) {
       console.error("storage.set error", key, e);
+      return null;
+    }
+  },
+  // Actualización parcial (PATCH), a diferencia de "set" (PUT) que reemplaza
+  // el nodo entero. Necesaria para "entries:{mes}": las reglas de seguridad
+  // de Firebase solo evalúan permisos por movimiento individual (quién es
+  // dueño de cada id) cuando el pedido es un PATCH — un PUT del mes completo
+  // queda bloqueado de raíz por la regla, sin importar qué movimientos
+  // cambiaron de verdad. "value" tiene que ser un objeto {id: entry|null},
+  // no el mes completo — null en un id borra ese movimiento puntual.
+  async update(key, value) {
+    try {
+      const parsed = JSON.parse(value);
+      const token = await tokenDeSesion();
+      const authParam = token ? `?auth=${encodeURIComponent(token)}` : "";
+      const res = await fetch(
+        `${window.LF_FIREBASE_URL}/${window.LF_HOGAR_ID}/${encodeURIComponent(key)}.json${authParam}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed),
+        }
+      );
+      if (!res.ok) return null;
+      return true;
+    } catch (e) {
+      console.error("storage.update error", key, e);
       return null;
     }
   },
