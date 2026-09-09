@@ -155,11 +155,13 @@ export function categoriaDe(categorias, id) {
 export const PERSONAS = {
   diego: {
     label: "Diego",
-    cssVar: "--c-diego"
+    cssVar: "--c-diego",
+    defaultColor: "#C31015"
   },
   yani: {
     label: "Yani",
-    cssVar: "--c-yani"
+    cssVar: "--c-yani",
+    defaultColor: "#9C6408"
   }
 };
 export const fmt = n => {

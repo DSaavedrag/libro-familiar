@@ -296,6 +296,7 @@ export function PersonColumn({
     onCancelar: () => setEditingAgrupaciones(false)
   }), editingTema && /*#__PURE__*/React.createElement(TemaEditor, {
     tema: tema,
+    person: person,
     onGuardar: t => {
       onSaveTema(t);
       setEditingTema(false);
@@ -645,20 +646,36 @@ function AgrupacionesEditor({
 const TEMA_DEFAULT = {
   rootBg: "#1C0E0D",
   cardBg: "#3D0A0A",
-  accent: "#C31015"
+  accent: "#C31015",
+  text: "#F2E5DC",
+  heading: "#F2E5DC"
 };
 // Editor de tema personal: cada jugador elige su propio fondo de app, color
-// de tarjetas y color de acento (botones) — no afecta al otro jugador, cada
-// uno guarda el suyo en Firebase bajo `tema:{person}` (ver saveTemaFor en
-// menu.js). "Restaurar paleta original" borra la personalización entera y
-// vuelve a mostrar los valores por defecto de arriba.
+// de tarjetas, color de acento (TODOS los botones de acción: Registro/
+// Ahorros, Parametrizar, Agrupaciones, Tema, Editar, Pagar tarjeta, + Nuevo
+// consumo, + Registrar...), color de los textos, color de títulos/
+// encabezados y "mi color" (el que lo identifica a uno por nombre y en los
+// montos que le corresponden, ej. en Hogar — gastos compartidos, donde se ve
+// la parte de Diego y la de Yani una al lado de la otra).
+//
+// Todos estos colores son privados salvo uno: "mi color" SÍ lo ve el otro
+// jugador (es justamente lo que lo distingue a uno del otro en las pantallas
+// compartidas) — el resto (fondo, tarjetas, acento, textos, títulos) sólo
+// cambia lo que ve quien lo eligió, cada uno guarda el suyo en Firebase bajo
+// `tema:{person}` (ver saveTemaFor en menu.js). "Restaurar paleta original"
+// borra la personalización entera y vuelve a mostrar los valores por defecto.
 function TemaEditor({
   tema,
+  person,
   onGuardar,
   onCancelar
 }) {
-  const [draft, setDraft] = useState({
+  const defaultConIdentidad = {
     ...TEMA_DEFAULT,
+    identidad: (PERSONAS[person] && PERSONAS[person].defaultColor) || "#C31015"
+  };
+  const [draft, setDraft] = useState({
+    ...defaultConIdentidad,
     ...(tema || {})
   });
   function setColor(key, value) {
@@ -668,13 +685,13 @@ function TemaEditor({
     }));
   }
   function restaurar() {
-    setDraft(TEMA_DEFAULT);
+    setDraft(defaultConIdentidad);
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "lf-agrup-editor"
   }, /*#__PURE__*/React.createElement("p", {
     className: "lf-agrup-hint"
-  }, "Tu paleta personal — no afecta lo que ve ", /*#__PURE__*/React.createElement("strong", null, "el otro jugador"), ", cada uno elige la suya."), [{
+  }, "Tu paleta personal — no afecta lo que ve ", /*#__PURE__*/React.createElement("strong", null, "el otro jugador"), ", cada uno elige la suya. La excepción es \"Mi color\": ese sí se ve en las pantallas compartidas (como Hogar), para distinguir lo tuyo de lo del otro."), [{
     key: "rootBg",
     label: "Fondo de la app"
   }, {
@@ -683,6 +700,15 @@ function TemaEditor({
   }, {
     key: "accent",
     label: "Color de acento (botones)"
+  }, {
+    key: "text",
+    label: "Color de los textos"
+  }, {
+    key: "heading",
+    label: "Color de títulos y encabezados"
+  }, {
+    key: "identidad",
+    label: `Mi color (${(PERSONAS[person] && PERSONAS[person].label) || "yo"})`
   }].map(f => /*#__PURE__*/React.createElement("div", {
     className: "lf-agrup-row",
     key: f.key

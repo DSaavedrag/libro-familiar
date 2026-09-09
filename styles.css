@@ -1,4 +1,9 @@
-      @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+      /* Toda la tipografía de Líah usa "Spicy Rice" (antes: Roboto Slab para
+         títulos, IBM Plex Sans para texto, IBM Plex Mono para números) —
+         pedido explícito de Diego. Sólo tiene un peso (400), así que los
+         font-weight que quedaron en las reglas de abajo ya no cambian nada
+         visualmente, pero no hace falta sacarlos: no rompen nada. */
+      @import url('https://fonts.googleapis.com/css2?family=Spicy+Rice&display=swap');
 
       .lf-root {
         /* Paleta sacada del logo (Líah): rojo/dorado sobre negro y blanco,
@@ -22,12 +27,21 @@
         --pos: #4F7A5B;
         --neg: #C31015;
 
-        font-family: 'IBM Plex Sans', sans-serif;
+        font-family: 'Spicy Rice', cursive;
         color: var(--ink);
-        /* --root-bg, --card-bg y --ui-accent son personalizables por jugador
-           (ver "Personalizar tema" en Mi cuenta) — acá quedan sin valor fijo
-           para que gane el override inline si el jugador logueado eligió los
-           suyos; el fallback #1C0E0D es el look por defecto. La línea rayada
+        /* --root-bg, --card-bg, --ui-accent, --ui-text y --ui-heading son
+           personalizables por jugador (ver "Tema" en Mi cuenta) — acá quedan
+           sin valor fijo para que gane el override inline si el jugador
+           logueado eligió los suyos; el fallback de cada uno (siempre
+           escrito como var(--x, valor)) es el look por defecto. --ui-accent
+           es el color de TODOS los botones de acción (Registro/Ahorros,
+           Parametrizar, Agrupaciones, Tema, Editar, Pagar tarjeta, + Nuevo
+           consumo, + Registrar...) — antes sólo el de "+ Registrar" seguía
+           el tema, el resto quedaba con el color de la agrupación de cada
+           uno; ahora todos siguen el mismo acento elegido. --ui-text es el
+           color de los textos en general y --ui-heading el de los títulos y
+           encabezados — ambos caen a var(--paper) si no se personalizaron.
+           La línea rayada
            se dibuja con una franja negra semitransparente ENCIMA de
            --root-bg (en vez de calcular un color mezclado con color-mix,
            que algunos navegadores de celular todavía no soportan bien y
@@ -45,7 +59,7 @@
       .lf-root * { box-sizing: border-box; }
 
       .lf-eyebrow {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 11px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
@@ -53,7 +67,7 @@
         margin: 0 0 4px;
       }
       .lf-h1 {
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-weight: 700;
         font-size: 26px;
         margin: 0;
@@ -78,7 +92,7 @@
         margin-bottom: 18px;
       }
       .lf-switch {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 12px;
         font-weight: 600;
         letter-spacing: 0.04em;
@@ -130,7 +144,7 @@
         gap: 6px;
         border: 1.5px solid var(--paper-line);
         background: transparent;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         font-family: inherit;
         font-size: 13px;
         font-weight: 600;
@@ -140,15 +154,17 @@
       }
       .lf-tab-btn.on {
         /* Antes usaba var(--ink) de fondo, casi el mismo tono que .lf-root:
-           se volvía invisible. Reusa el mismo rojo oscuro de .lf-col para
-           que se note claramente cuál pestaña está activa. */
-        background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
-        border-color: var(--card-bg, #3D0A0A);
+           se volvía invisible. Ahora usa el color de acento del tema
+           (--ui-accent, el mismo que "+ Registrar") para que la pestaña
+           activa se sienta parte del mismo "tema" que el resto de los
+           botones de acción — no un color fijo aparte. */
+        background: var(--ui-accent, #C31015);
+        color: #fff;
+        border-color: var(--ui-accent, #C31015);
       }
 
-      .lf-ahorros { margin-top: 4px; color: var(--paper); }
-      .lf-ahorros-head h2 { margin: 0 0 14px; color: var(--paper); }
+      .lf-ahorros { margin-top: 4px; color: var(--ui-text, var(--paper)); }
+      .lf-ahorros-head h2 { margin: 0 0 14px; color: var(--ui-heading, var(--paper)); }
       .lf-ahorros-totals {
         display: flex;
         flex-wrap: wrap;
@@ -170,7 +186,7 @@
         gap: 8px;
         text-align: left;
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 14px 16px;
@@ -197,7 +213,7 @@
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
-      .lf-reserva-meta-label { font-size: 12px; color: var(--paper); opacity: 0.65; }
+      .lf-reserva-meta-label { font-size: 12px; color: var(--ui-text, var(--paper)); opacity: 0.65; }
       .lf-reserva-add-btn {
         display: flex;
         align-items: center;
@@ -205,7 +221,7 @@
         gap: 6px;
         border: 1.5px dashed var(--paper-line);
         background: transparent;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border-radius: 14px;
         padding: 14px 16px;
         cursor: pointer;
@@ -218,7 +234,7 @@
         flex-direction: column;
         gap: 10px;
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 16px;
@@ -230,13 +246,13 @@
         font-family: inherit;
         font-size: 14px;
         background: rgba(237,230,214,0.08);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
       }
       .lf-reserva-nueva-form input::placeholder { color: rgba(237,230,214,0.45); }
       .lf-reserva-nueva-btns { display: flex; gap: 8px; }
       .lf-reserva-detalle {
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 18px;
@@ -244,7 +260,7 @@
       .lf-reserva-back {
         border: none;
         background: transparent;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         opacity: 0.7;
         cursor: pointer;
         font-family: inherit;
@@ -272,7 +288,7 @@
         font-family: inherit;
         font-size: 14px;
         background: rgba(237,230,214,0.08);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         flex: 1;
         min-width: 140px;
       }
@@ -339,12 +355,12 @@
       }
 
       .lf-monthnav {
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 14px;
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 16px;
         font-weight: 500;
         margin-bottom: 18px;
@@ -359,7 +375,7 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
       }
       .lf-monthnav button:hover { background: rgba(237,230,214,0.18); }
 
@@ -371,7 +387,7 @@
         display: flex;
         align-items: center;
         gap: 5px;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 11px;
         font-weight: 600;
         color: var(--ink-soft);
@@ -391,7 +407,7 @@
         color: var(--neg);
       }
       .lf-reset-confirm svg { flex: none; margin-top: 2px; }
-      .lf-reset-confirm p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--paper); flex: 1; }
+      .lf-reset-confirm p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ui-text, var(--paper)); flex: 1; }
       .lf-reset-confirm-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
       .lf-reset-confirm-yes {
         background: var(--neg);
@@ -428,7 +444,7 @@
 
       .lf-form-card {
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1px solid var(--paper-line);
         border-radius: 12px;
         padding: 14px;
@@ -488,13 +504,13 @@
       }
 
       .lf-input {
-        font-family: 'IBM Plex Sans', sans-serif;
+        font-family: 'Spicy Rice', cursive;
         border: 1px solid rgba(237,230,214,0.3);
         border-radius: 8px;
         padding: 9px 12px;
         font-size: 14px;
         background: rgba(237,230,214,0.08);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         flex: 1;
         min-width: 0;
       }
@@ -506,7 +522,7 @@
       .lf-input:focus { outline: 2px solid var(--ui-accent, var(--diego)); outline-offset: 1px; }
       .lf-input-monto {
         flex: 0 0 140px;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-weight: 600;
       }
 
@@ -526,7 +542,7 @@
         padding: 6px 12px;
         font-size: 12.5px;
         cursor: pointer;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         opacity: 0.75;
       }
       .lf-cat-pill:hover { opacity: 1; background: rgba(237,230,214,0.14); }
@@ -574,7 +590,7 @@
       }
       .lf-gate-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
       .lf-gate-btn {
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 16px;
         font-weight: 600;
         border: 2px solid var(--accent);
@@ -605,7 +621,7 @@
       }
       .lf-gate-uid {
         display: inline-block;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 11px;
         background: rgba(36,20,18,0.08);
         border-radius: 6px;
@@ -630,21 +646,21 @@
       }
       .lf-hogar {
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1.5px dashed var(--paper-line);
         border-radius: 12px;
         padding: 18px 20px;
         margin-top: 20px;
       }
       .lf-hogar-title {
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 16px;
         font-weight: 700;
-        color: var(--paper);
+        color: var(--ui-heading, var(--paper));
         margin: 0;
       }
-      .lf-edit-btn.lf-edit-btn-hogar { border-color: var(--paper); color: var(--paper); background: transparent; }
-      .lf-edit-btn.lf-edit-btn-hogar:hover { background: rgba(36,20,18,0.06); }
+      .lf-edit-btn.lf-edit-btn-hogar { border-color: var(--ui-accent, #C31015); color: var(--ui-accent, #C31015); background: transparent; }
+      .lf-edit-btn.lf-edit-btn-hogar:hover { background: rgba(237,230,214,0.12); }
       .lf-hogar-split {
         border-top: 1px solid var(--paper-line);
         border-bottom: 1px solid var(--paper-line);
@@ -654,7 +670,7 @@
       .lf-hogar-split-nums {
         display: flex;
         justify-content: space-between;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 12.5px;
         font-weight: 600;
         margin-bottom: 6px;
@@ -716,7 +732,7 @@
         display: flex;
         justify-content: flex-end;
         gap: 14px;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 10.5px;
         margin-top: 1px;
       }
@@ -734,7 +750,7 @@
            tarjeta necesita su propio tono para no fundirse con el fondo. */
         background: var(--card-bg, #3D0A0A);
         border: 1px solid rgba(255,255,255,0.08);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border-radius: 14px;
         padding: 20px;
         --accent-on-dark: color-mix(in srgb, var(--accent) 55%, white);
@@ -747,7 +763,7 @@
         margin-bottom: 10px;
       }
       .lf-col-title {
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 17px;
         font-weight: 700;
         color: var(--accent);
@@ -758,7 +774,7 @@
         margin-left: 8px;
         padding: 2px 7px;
         border-radius: 999px;
-        font-family: system-ui, sans-serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 10px;
         font-weight: 600;
         letter-spacing: 0.02em;
@@ -768,11 +784,11 @@
         vertical-align: middle;
       }
       .lf-edit-btn.lf-edit-btn-col {
-        border-color: var(--accent);
-        color: var(--accent);
+        border-color: var(--ui-accent, #C31015);
+        color: var(--ui-accent, #C31015);
         background: transparent;
       }
-      .lf-edit-btn.lf-edit-btn-col:hover { background: color-mix(in srgb, var(--accent) 10%, white); }
+      .lf-edit-btn.lf-edit-btn-col:hover { background: color-mix(in srgb, var(--ui-accent, #C31015) 10%, white); }
       .lf-col-base-row {
         display: flex;
         flex-direction: column;
@@ -780,11 +796,11 @@
         margin-bottom: 10px;
         padding: 10px;
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1px solid var(--paper-line);
         border-radius: 8px;
       }
-      .lf-col-budget-input { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+      .lf-col-budget-input { font-family: 'Spicy Rice', cursive; font-weight: 600; }
       .lf-use-income-btn-col {
         border: 1px dashed var(--accent);
         color: var(--accent);
@@ -805,7 +821,7 @@
         display: flex;
         align-items: center;
         gap: 4px;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 12px;
       }
       .lf-col-pct-input {
@@ -815,7 +831,7 @@
         text-align: right;
       }
       .lf-col-pct-amount {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 11.5px;
         font-weight: 600;
         color: var(--accent);
@@ -887,7 +903,7 @@
       }
       .lf-col-cat-num-wrap { display: flex; flex-direction: column; align-items: flex-end; }
       .lf-col-cat-restante {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 10px;
         font-weight: 500;
       }
@@ -901,7 +917,7 @@
         margin: 0 0 10px;
         line-height: 1.4;
       }
-      .lf-base-note strong { color: var(--paper); font-family: 'IBM Plex Mono', monospace; }
+      .lf-base-note strong { color: var(--ui-text, var(--paper)); font-family: 'Spicy Rice', cursive; }
 
       .lf-tarjetas {
         border-top: 1px solid var(--paper-line);
@@ -914,7 +930,7 @@
         flex-direction: column;
         gap: 8px;
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1px solid var(--paper-line);
         border-radius: 8px;
         padding: 10px;
@@ -925,7 +941,7 @@
          la tarjeta oscura para no fundirse con ella. */
       .lf-tarjeta-form .lf-add-btn { background: var(--ui-accent, #C31015); color: #fff; }
       .lf-tarjeta-form-row { display: flex; gap: 8px; align-items: flex-end; }
-      .lf-tarjeta-monto { flex: 1; font-family: 'IBM Plex Mono', monospace; }
+      .lf-tarjeta-monto { flex: 1; font-family: 'Spicy Rice', cursive; }
       .lf-tarjeta-cuotas { display: flex; flex-direction: column; gap: 3px; }
       .lf-tarjeta-cuotas-input { width: 56px; text-align: center; }
       .lf-tarjeta-preview {
@@ -944,14 +960,14 @@
         padding: 5px 0;
       }
       .lf-tarjeta-item-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-      .lf-tarjeta-item-name { font-size: 12px; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .lf-tarjeta-item-sub { font-size: 10.5px; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; }
+      .lf-tarjeta-item-name { font-size: 12px; color: var(--ui-text, var(--paper)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .lf-tarjeta-item-sub { font-size: 10.5px; color: var(--ink-soft); font-family: 'Spicy Rice', cursive; }
       .lf-tarjeta-item-cat { font-weight: 600; }
       .lf-tarjeta-item-split {
         display: flex;
         gap: 12px;
         font-size: 10px;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         margin-top: 1px;
       }
       .lf-tarjetas-hogar { border-top-color: var(--paper-line); margin-top: 4px; }
@@ -1055,7 +1071,7 @@
         align-items: center;
         gap: 8px;
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1px solid var(--paper-line);
         border-radius: 8px;
         padding: 8px;
@@ -1080,8 +1096,8 @@
       .lf-pendiente-tarjeta-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .lf-pendiente-tarjeta-row .lf-num { font-size: 16px; }
       .lf-pagar-tarjeta-btn {
-        background: var(--ink);
-        color: var(--paper);
+        background: var(--ui-accent, #C31015);
+        color: #fff;
         border: none;
         border-radius: 8px;
         padding: 7px 14px;
@@ -1112,7 +1128,7 @@
         text-align: left;
       }
       .lf-tarjeta-detalle-toggle:hover { background: rgba(237,230,214,0.15); }
-      .lf-tarjeta-detalle-toggle strong { color: var(--paper); font-family: 'IBM Plex Mono', monospace; }
+      .lf-tarjeta-detalle-toggle strong { color: var(--ui-text, var(--paper)); font-family: 'Spicy Rice', cursive; }
       .lf-tarjeta-detalle-arrow { margin-left: auto; font-size: 9px; }
       .lf-tarjeta-detalle-body { padding: 8px 10px 10px; border-top: 1px solid var(--paper-line); }
       .lf-tarjeta-detalle-cat { margin-bottom: 8px; }
@@ -1125,14 +1141,14 @@
         font-weight: 600;
         margin-bottom: 3px;
       }
-      .lf-tarjeta-detalle-cat-total { margin-left: auto; font-family: 'IBM Plex Mono', monospace; color: var(--paper); }
+      .lf-tarjeta-detalle-cat-total { margin-left: auto; font-family: 'Spicy Rice', cursive; color: var(--ui-text, var(--paper)); }
       .lf-tarjeta-detalle-item {
         display: flex;
         justify-content: space-between;
         font-size: 11px;
         color: var(--ink-soft);
         padding: 2px 0 2px 18px;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
       }
       /* La etiqueta ("Sube", "Viajes"...) ahora es un botón desplegable: mismo
          aspecto que el div de antes, pero clickeable para ver cada consumo
@@ -1195,7 +1211,7 @@
 
       .lf-cotizacion {
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1px solid var(--paper-line);
         border-radius: 10px;
         padding: 10px 12px;
@@ -1208,18 +1224,18 @@
       }
       .lf-cotizacion-left { display: flex; flex-direction: column; gap: 3px; }
       .lf-cotizacion-valor {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 15px;
         font-weight: 600;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
       }
       .lf-cotizacion-edit-row { display: flex; align-items: center; gap: 4px; }
       .lf-cotizacion-prefix, .lf-cotizacion-suffix {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 12.5px;
         color: var(--ink-soft);
       }
-      .lf-cotizacion-input { width: 90px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+      .lf-cotizacion-input { width: 90px; font-family: 'Spicy Rice', cursive; font-weight: 600; }
       .lf-cotizacion-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       .lf-cotizacion-live-btn {
         display: flex;
@@ -1250,10 +1266,10 @@
       }
       .lf-fijos-head { margin-bottom: 8px; }
       .lf-fijos-title {
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 13px;
         font-weight: 700;
-        color: var(--paper);
+        color: var(--ui-heading, var(--paper));
         margin: 0;
       }
       .lf-fijos-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
@@ -1265,7 +1281,7 @@
         padding: 3px 0;
       }
       .lf-fijo-item-name { flex: 1; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .lf-fijo-item-monto { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+      .lf-fijo-item-monto { font-family: 'Spicy Rice', cursive; font-weight: 500; }
       .lf-fijo-item-cargar {
         border: 1px solid var(--accent, var(--ink));
         color: var(--accent, var(--ink));
@@ -1308,7 +1324,7 @@
       .lf-fijos-editor { display: flex; flex-direction: column; gap: 12px; }
       .lf-fijo-row {
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1px solid var(--paper-line);
         border-radius: 8px;
         padding: 8px;
@@ -1317,7 +1333,7 @@
       .lf-fijo-nombre { flex: 1; font-size: 12.5px; padding: 6px 8px; }
       .lf-fijo-monto {
         flex: 0 0 90px;
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 12.5px;
         padding: 6px 8px;
       }
@@ -1424,14 +1440,14 @@
       }
       .lf-col-totals > div { display: flex; flex-direction: column; min-width: 0; }
       .lf-label {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 10px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
         color: var(--ink-soft);
       }
       .lf-num {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 15px;
         font-weight: 600;
       }
@@ -1454,7 +1470,7 @@
       }
       .lf-col-mini-track { flex: 1 1 100%; width: 100%; overflow: hidden; }
       .lf-col-cat-label { color: var(--ink-soft); flex: 1; }
-      .lf-col-cat-num { font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+      .lf-col-cat-num { font-family: 'Spicy Rice', cursive; font-weight: 500; }
       /* Cada fila de categoría (Ahorros, Necesidades...) se puede tocar para
          desplegar los movimientos uno por uno, igual que las etiquetas de
          tarjeta de arriba — para no depender solo del total. */
@@ -1497,10 +1513,10 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-weight: 700;
         font-size: 12px;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         padding-bottom: 3px;
         margin-top: 10px;
         border-bottom: 1px solid var(--paper-line);
@@ -1520,7 +1536,7 @@
         gap: 8px;
         padding: 6px 8px;
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border-radius: 6px;
       }
       .lf-entry-pagado { opacity: 0.6; }
@@ -1555,7 +1571,7 @@
       .lf-entry-text { display: flex; flex-direction: column; min-width: 0; }
       .lf-entry-desc { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .lf-entry-cat { font-size: 10.5px; color: var(--ink-soft); }
-      .lf-entry-amt { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+      .lf-entry-amt { font-family: 'Spicy Rice', cursive; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
       .lf-entry-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; }
       .lf-entry-amt-row { display: flex; align-items: center; gap: 4px; }
       .lf-entry-del {
@@ -1602,7 +1618,7 @@
 
       .lf-familiar {
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1.5px dashed var(--paper-line);
         border-radius: 12px;
         padding: 20px;
@@ -1615,11 +1631,11 @@
         margin-bottom: 14px;
       }
       .lf-familiar-head h2 {
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 16px;
         font-weight: 700;
         margin: 0;
-        color: var(--paper);
+        color: var(--ui-heading, var(--paper));
       }
       .lf-edit-btn {
         display: flex;
@@ -1627,7 +1643,7 @@
         gap: 5px;
         background: transparent;
         border: 1px solid var(--paper-line);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border-radius: 999px;
         padding: 5px 11px;
         font-size: 11.5px;
@@ -1647,7 +1663,7 @@
 
       .lf-cat-bars { display: flex; flex-direction: column; gap: 10px; }
       .lf-cat-bar-row { display: flex; align-items: center; gap: 10px; }
-      .lf-cat-bar-label { display: flex; align-items: center; gap: 6px; width: 100px; flex: none; font-size: 12.5px; color: var(--paper); }
+      .lf-cat-bar-label { display: flex; align-items: center; gap: 6px; width: 100px; flex: none; font-size: 12.5px; color: var(--ui-text, var(--paper)); }
       .lf-bar-track {
         flex: 1;
         height: 8px;
@@ -1657,7 +1673,7 @@
       }
       .lf-bar-fill { height: 100%; border-radius: 999px; }
       .lf-bar-nums {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 11.5px;
         color: var(--ink-soft);
         width: 170px;
@@ -1668,7 +1684,7 @@
         max-width: 160px;
         background: rgba(237,230,214,0.08);
         border-color: rgba(237,230,214,0.3);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
       }
       .lf-base-row {
         display: flex;
@@ -1684,7 +1700,7 @@
       .lf-use-income-btn {
         background: transparent;
         border: 1px dashed rgba(237,230,214,0.4);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border-radius: 8px;
         padding: 9px 12px;
         font-size: 12px;
@@ -1695,12 +1711,12 @@
         max-width: 64px;
         background: rgba(237,230,214,0.08);
         border-color: rgba(237,230,214,0.3);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         text-align: right;
       }
-      .lf-pct-suffix { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: rgba(237,230,214,0.7); }
+      .lf-pct-suffix { font-family: 'Spicy Rice', cursive; font-size: 12.5px; color: rgba(237,230,214,0.7); }
       .lf-pct-total {
-        font-family: 'IBM Plex Mono', monospace;
+        font-family: 'Spicy Rice', cursive;
         font-size: 12px;
         color: var(--ink-soft);
         margin: 12px 0 0;
@@ -1708,25 +1724,25 @@
       .lf-pct-warn { color: #E0A86B; }
       .lf-save-budget { margin-top: 16px; width: 100%; justify-content: center; background: var(--paper); color: var(--ink); }
 
-      .lf-loading { text-align: center; padding: 40px 0; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+      .lf-loading { text-align: center; padding: 40px 0; color: var(--ink-soft); font-family: 'Spicy Rice', cursive; font-size: 13px; }
 
       /* Mi cuenta: tema oscuro (mismo look que antes tenía Vista grupal), a ancho completo.
          Todo lo de acá abajo son overrides SOLO para dentro de .lf-col — el resto de la app
          (Hogar, Vista grupal, formulario) sigue con la paleta clara de siempre. */
-      .lf-col .lf-col-title { color: var(--paper); }
-      .lf-col .lf-edit-btn.lf-edit-btn-col { border-color: var(--accent-on-dark); color: var(--accent-on-dark); }
+      .lf-col .lf-col-title { color: var(--ui-heading, var(--paper)); }
+      .lf-col .lf-edit-btn.lf-edit-btn-col { border-color: var(--ui-accent, #C31015); color: var(--ui-accent, #C31015); }
       .lf-col .lf-edit-btn.lf-edit-btn-col:hover { background: rgba(237,230,214,0.12); }
       .lf-col .lf-label { color: rgba(237,230,214,0.6); }
       .lf-col .lf-pendiente-tarjeta > div:first-child { color: rgba(237,230,214,0.75); }
       .lf-col .lf-tarjeta-detalle { border-color: rgba(237,230,214,0.25); }
       .lf-col .lf-tarjeta-detalle-toggle { background: rgba(237,230,214,0.08); color: rgba(237,230,214,0.75); }
       .lf-col .lf-tarjeta-detalle-toggle:hover { background: rgba(237,230,214,0.14); }
-      .lf-col .lf-tarjeta-detalle-toggle strong { color: var(--paper); }
+      .lf-col .lf-tarjeta-detalle-toggle strong { color: var(--ui-text, var(--paper)); }
       .lf-col .lf-tarjeta-detalle-body { border-top-color: rgba(237,230,214,0.2); }
-      .lf-col .lf-tarjeta-detalle-cat-total { color: var(--paper); }
+      .lf-col .lf-tarjeta-detalle-cat-total { color: var(--ui-text, var(--paper)); }
       .lf-col .lf-tarjeta-detalle-item { color: rgba(237,230,214,0.65); }
       .lf-col .lf-base-note { background: rgba(237,230,214,0.08); border-color: rgba(237,230,214,0.25); color: rgba(237,230,214,0.75); }
-      .lf-col .lf-base-note strong { color: var(--paper); }
+      .lf-col .lf-base-note strong { color: var(--ui-text, var(--paper)); }
       .lf-col .lf-col-cats { border-top-color: rgba(237,230,214,0.2); border-bottom-color: rgba(237,230,214,0.2); }
       .lf-col .lf-col-cat-label { color: rgba(237,230,214,0.75); }
       .lf-col .lf-col-cat-row-clickable:hover { background: rgba(237,230,214,0.08); }
@@ -1736,7 +1752,7 @@
          categoría/etiqueta — igual que las demás piezas de arriba, necesita su
          propio contraste para verse bien sobre el fondo oscuro. */
       .lf-col .lf-entry { background: rgba(237,230,214,0.1); }
-      .lf-col .lf-entry-desc { color: var(--paper); }
+      .lf-col .lf-entry-desc { color: var(--ui-text, var(--paper)); }
       .lf-col .lf-entry-cat { color: rgba(237,230,214,0.6); }
       .lf-col .lf-entry-del { color: rgba(237,230,214,0.45); }
       .lf-col .lf-entry-del:hover { color: var(--neg); background: rgba(237,230,214,0.12); }
@@ -1753,13 +1769,13 @@
          (igual que Hogar/Vista grupal), no la clara de antes. */
       .lf-col-outer-light {
         background: var(--card-bg, #3D0A0A);
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         border: 1.5px dashed var(--paper-line);
         border-radius: 14px;
         padding: 20px;
         margin-top: 20px;
       }
-      .lf-movs-title { font-size: 15px; margin: 18px 0 10px; color: var(--paper); }
+      .lf-movs-title { font-size: 15px; margin: 18px 0 10px; color: var(--ui-heading, var(--paper)); }
 
       /* Contorno rojo cuando una barra de categoría se pasó del límite */
       .lf-bar-exceeded { outline: 3px solid var(--neg); outline-offset: 3px; border-radius: 999px; }
@@ -1989,7 +2005,7 @@
         border-radius: 7px;
         border: 1px solid transparent;
         background: transparent;
-        color: var(--paper);
+        color: var(--ui-text, var(--paper));
         opacity: 0.6;
         display: flex;
         align-items: center;
@@ -2020,7 +2036,7 @@
       .lf-familiar-persona { margin-bottom: 14px; }
       .lf-familiar-persona:last-child { margin-bottom: 0; }
       .lf-familiar-sub {
-        font-family: 'Roboto Slab', serif;
+        font-family: 'Spicy Rice', cursive;
         font-size: 13px;
         font-weight: 700;
         margin: 0 0 6px;

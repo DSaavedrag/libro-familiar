@@ -213,25 +213,40 @@ export function LibroFamiliar() {
     yani: null
   });
   // Tema personalizado de la app (fondo, color de las tarjetas, color de
-  // acento de los botones): igual que agrupaciones, cada jugador tiene el
+  // acento de TODOS los botones de acción, color de los textos y color de
+  // los títulos/encabezados): igual que agrupaciones, cada jugador tiene el
   // suyo guardado en Firebase bajo `tema:{person}` — si no eligió nada,
   // queda en `null` y no se pisa la paleta por defecto (ver temaStyle más
-  // abajo y "Personalizar tema" en Mi cuenta).
+  // abajo y "Tema" en Mi cuenta).
   const [temas, setTemas] = useState({
     diego: null,
     yani: null
   });
-  // Tema visual: se aplica el del jugador que inició sesión de verdad
-  // (activePerson, no viewingPerson) — cada uno ve su propia paleta elegida
-  // sin importar de quién es el libro que está mirando. Si no personalizó
-  // nada (temas[activePerson] es null/undefined), temaStyle queda vacío y
-  // se ve la paleta por defecto de styles.css (sin pisar nada).
+  // Tema visual: la mayor parte se aplica del jugador que inició sesión de
+  // verdad (activePerson, no viewingPerson) — cada uno ve su propia paleta
+  // elegida sin importar de quién es el libro que está mirando. Si no
+  // personalizó nada (temas[activePerson] es null/undefined), esa parte
+  // queda vacía y se ve la paleta por defecto de styles.css (sin pisar nada).
+  //
+  // "Mi color" (identidad) es la excepción: no es privado, tiene que verse
+  // igual para los dos jugadores (es lo que distingue "Diego" de "Yani" en
+  // pantallas compartidas como Hogar) — por eso se lee siempre de temas.diego
+  // y temas.yani, sin importar quién esté logueado, y se aplica encima de lo
+  // demás.
   const miTema = (activePerson && temas[activePerson]) || null;
-  const temaStyle = miTema ? {
-    ...(miTema.rootBg ? { "--root-bg": miTema.rootBg } : {}),
-    ...(miTema.cardBg ? { "--card-bg": miTema.cardBg } : {}),
-    ...(miTema.accent ? { "--ui-accent": miTema.accent } : {})
-  } : undefined;
+  const identidadDiego = (temas.diego && temas.diego.identidad) || null;
+  const identidadYani = (temas.yani && temas.yani.identidad) || null;
+  const temaStyle = {
+    ...(identidadDiego ? { "--c-diego": identidadDiego, "--diego": identidadDiego } : {}),
+    ...(identidadYani ? { "--c-yani": identidadYani, "--yani": identidadYani } : {}),
+    ...(miTema ? {
+      ...(miTema.rootBg ? { "--root-bg": miTema.rootBg } : {}),
+      ...(miTema.cardBg ? { "--card-bg": miTema.cardBg } : {}),
+      ...(miTema.accent ? { "--ui-accent": miTema.accent } : {}),
+      ...(miTema.text ? { "--ui-text": miTema.text } : {}),
+      ...(miTema.heading ? { "--ui-heading": miTema.heading } : {})
+    } : {})
+  };
   // El fondo de ".lf-root" ya se pisa solo (está adentro de <div id="root">,
   // vía el style inline de arriba) — pero el "cuerpo" real de la página, el
   // marco fino de afuera (html/body, ver index.html), vive FUERA de ese div
@@ -657,9 +672,10 @@ export function LibroFamiliar() {
     });
   }
   // Guarda el tema personalizado de un jugador (fondo de la app, color de
-  // las tarjetas, color de acento) — ver TemaEditor en pantalla-mi-cuenta.js.
-  // `tema` puede tener menos de las 3 claves (rootBg/cardBg/accent): la que
-  // falte simplemente no se guarda y sigue mostrando el valor por defecto.
+  // las tarjetas, color de acento, color de textos, color de títulos y "mi
+  // color"/identidad) — ver TemaEditor en pantalla-mi-cuenta.js. `tema`
+  // puede tener menos claves de las que existen: la que falte simplemente no
+  // se guarda y sigue mostrando el valor por defecto.
   async function saveTemaFor(personId, tema) {
     setTemas(prev => ({
       ...prev,
