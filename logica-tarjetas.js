@@ -18,7 +18,7 @@
 // decide qué hacer con ese resultado (guardarlo, avisar un error, etc.).
 
 import { shiftMonth, monthDiff } from "./constants.js";
-import { storageSetRetry } from "./storage.js";
+import { storageUpdateRetry, mapaAArray } from "./storage.js";
 
 // Arma UNA cuota (un movimiento) de una compra en cuotas.
 export function buildCuotaEntry({
@@ -105,9 +105,19 @@ export async function escribirCuotas({
 async function removeEntryFromOtherMonth(mKey, tarjetaId) {
   try {
     const r = await window.storage.get(`entries:${mKey}`, true);
-    const existing = r ? JSON.parse(r.value) : [];
-    const filtered = existing.filter(e => e.tarjetaId !== tarjetaId);
-    await storageSetRetry(`entries:${mKey}`, JSON.stringify(filtered), true);
+    const existing = r ? mapaAArray(JSON.parse(r.value)) : [];
+    const aBorrar = existing.filter(e => e.tarjetaId === tarjetaId);
+    if (aBorrar.length === 0) return;
+    // Borrar puntual (PATCH, solo los ids que corresponden), nunca un PUT
+    // del mes completo — la regla de seguridad bloquea siempre reemplazar
+    // "entries:{mes}" entero de una. De paso corrige un bug viejo: los
+    // movimientos se guardan como objeto {id: entry} desde hace rato, no
+    // como array — este archivo todavía los trataba como array.
+    const patch = {};
+    aBorrar.forEach(e => {
+      patch[e.id] = null;
+    });
+    await storageUpdateRetry(`entries:${mKey}`, JSON.stringify(patch), true);
   } catch {
     // si no hay nada guardado para ese mes, no hay nada que borrar
   }
@@ -148,7 +158,7 @@ export async function detectarCuotasFaltantes({
     } else {
       try {
         const r = await window.storage.get(`entries:${mKey}`, true);
-        existing = r ? JSON.parse(r.value) : [];
+        existing = r ? mapaAArray(JSON.parse(r.value)) : [];
       } catch {
         existing = [];
       }
