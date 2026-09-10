@@ -494,21 +494,34 @@ export function LibroFamiliar() {
   // puede requerir crear o resincronizar movimientos de fijos (la lista de
   // fijos, el reparto del hogar, la cotización, o el mes) — que es
   // exactamente cuándo hace falta.
+  //
+  // Importante: los fijos PERSONALES (no los de Hogar) sólo se crean/
+  // resincronizan para `activePerson` (quien tiene la sesión abierta en
+  // este dispositivo), nunca para el otro jugador. Antes este efecto
+  // procesaba a Diego y Yani siempre juntos ("diego" y "yani" en el mismo
+  // persistEntries), lo cual andaba bien cuando cualquiera podía escribir
+  // cualquier movimiento — pero con las reglas de seguridad por persona,
+  // la sesión de uno de los dos terminaba mandando en el mismo PATCH un
+  // movimiento fijo del OTRO (por ejemplo, uno en USD que se recalcula
+  // solo por moverse la cotización), y Firebase lo rechazaba entero con
+  // "Permission denied" (el movimiento fijo personal no tiene hogarId, así
+  // que no entra en la excepción que sí protege a los fijos de Hogar). Los
+  // fijos de Hogar sí se siguen creando/actualizando para ambos acá mismo,
+  // porque esos movimientos llevan hogarId y la regla permite que
+  // cualquiera de los dos los toque.
   useEffect(() => {
-    if (loading) return;
+    if (loading || !activePerson) return;
     let next = entries;
     let changed = false;
-    for (const pid of ["diego", "yani"]) {
-      const nuevas = armarEntriesFijosFaltantes({
-        list: fijos[pid] || [],
-        entries: next,
-        personId: pid,
-        cotizacionDolar
-      });
-      if (nuevas.length > 0) {
-        next = [...nuevas, ...next];
-        changed = true;
-      }
+    const nuevas = armarEntriesFijosFaltantes({
+      list: fijos[activePerson] || [],
+      entries: next,
+      personId: activePerson,
+      cotizacionDolar
+    });
+    if (nuevas.length > 0) {
+      next = [...nuevas, ...next];
+      changed = true;
     }
     const nuevasHogar = armarEntriesHogarFaltantes({
       fijosHogar,
@@ -519,8 +532,7 @@ export function LibroFamiliar() {
       next = [...nuevasHogar, ...next];
       changed = true;
     }
-    const todosFijos = [...(fijos.diego || []), ...(fijos.yani || [])];
-    const actualizadasFijos = entriesActualizadasPorFijos(next, todosFijos, cotizacionDolar);
+    const actualizadasFijos = entriesActualizadasPorFijos(next, fijos[activePerson] || [], cotizacionDolar);
     if (actualizadasFijos) {
       next = actualizadasFijos;
       changed = true;
@@ -532,7 +544,7 @@ export function LibroFamiliar() {
     }
     if (changed) persistEntries(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, month, fijos, fijosHogar, splitHogar, cotizacionDolar]);
+  }, [loading, activePerson, month, fijos, fijosHogar, splitHogar, cotizacionDolar]);
 
   useEffect(() => {
     (async () => {
