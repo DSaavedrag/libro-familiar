@@ -316,6 +316,48 @@ export function LibroFamiliar() {
       }));
     }
   }, [activePerson, agrupaciones]);
+  // La parametrización de cada jugador vive en su PROPIA clave
+  // ("settings:{mes}:diego", "settings:{mes}:yani") — no en un solo bloque
+  // combinado como antes. Así cada uno escribe solo lo suyo: la regla de
+  // seguridad ya no necesita comparar ni proteger el valor del otro, y no
+  // hace falta arrastrar una copia local (posiblemente vieja) del otro
+  // jugador solo para poder guardar la propia.
+  async function leerSettingsPersona(m, personId) {
+    try {
+      const r = await window.storage.get(`settings:${m}:${personId}`, true);
+      if (r) return JSON.parse(r.value);
+    } catch {
+      // sigue de largo, se prueba el formato viejo abajo
+    }
+    return null;
+  }
+  // Trae la parametrización combinada {diego, yani} de un mes, probando
+  // primero las claves nuevas (una por persona) y, si a alguna le falta,
+  // completando con el formato viejo combinado ("settings:{mes}", sin
+  // separar por persona) — así los meses guardados antes de este cambio se
+  // siguen leyendo bien, aunque los guardados nuevos ya no usen ese formato.
+  async function cargarSettingsDeMes(m) {
+    const [diego, yani] = await Promise.all([leerSettingsPersona(m, "diego"), leerSettingsPersona(m, "yani")]);
+    if (diego && yani) return {
+      diego,
+      yani
+    };
+    try {
+      const r = await window.storage.get(`settings:${m}`, true);
+      if (r) {
+        const parsed = JSON.parse(r.value);
+        if (parsed.diego && parsed.yani) {
+          return {
+            diego: diego || parsed.diego,
+            yani: yani || parsed.yani
+          };
+        }
+      }
+    } catch {
+      // nada guardado en ningún formato para este mes
+    }
+    return null;
+  }
   const load = useCallback(async m => {
     setLoading(true);
     setErrorMsg("");
@@ -337,16 +379,12 @@ export function LibroFamiliar() {
       };
       let sett = defaultSett;
       try {
-        const r = await window.storage.get(`settings:${m}`, true);
-        if (r) {
-          const parsed = JSON.parse(r.value);
-          sett = parsed.diego && parsed.yani ? parsed : defaultSett;
+        const actual = await cargarSettingsDeMes(m);
+        if (actual) {
+          sett = actual;
         } else {
-          const prev = await window.storage.get(`settings:${shiftMonth(m, -1)}`, true).catch(() => null);
-          if (prev) {
-            const parsed = JSON.parse(prev.value);
-            sett = parsed.diego && parsed.yani ? parsed : defaultSett;
-          }
+          const prev = await cargarSettingsDeMes(shiftMonth(m, -1));
+          if (prev) sett = prev;
         }
       } catch {
         // sin parametrización guardada todavía, se usan los valores por defecto
@@ -662,12 +700,11 @@ export function LibroFamiliar() {
     return true;
   }
   async function saveSettingsFor(personId, personSettings) {
-    const next = {
-      ...settings,
+    setSettings(prev => ({
+      ...prev,
       [personId]: personSettings
-    };
-    setSettings(next);
-    const res = await storageSetRetry(`settings:${month}`, JSON.stringify(next), true);
+    }));
+    const res = await storageSetRetry(`settings:${month}:${personId}`, JSON.stringify(personSettings), true);
     if (!res) setErrorMsg("No se pudo guardar la parametrización. Probá de nuevo.");
   }
   // Guarda la lista de agrupaciones de un jugador (Ahorros/Necesidades/Liah/
@@ -1088,20 +1125,28 @@ export function LibroFamiliar() {
     persistEntries(entriesSinId(entries, id));
   }
   async function resetMonth() {
-    const emptyEntries = [];
-    const defaultSett = {
-      diego: {
-        pct: pctPorDefecto(agrupaciones.diego)
-      },
-      yani: {
-        pct: pctPorDefecto(agrupaciones.yani)
-      }
+    const defaultPropia = {
+      pct: pctPorDefecto(agrupaciones[activePerson])
     };
-    setEntries(emptyEntries);
-    setSettings(defaultSett);
+    // "Reiniciar mes" ahora solo toca lo que la persona activa puede tocar
+    // de verdad: sus propios movimientos (y los de hogar) y su propia
+    // parametrización — con permisos reales, ya no se puede resetear de un
+    // saque lo personal del otro jugador. Vaciar "entries:{mes}" es un
+    // PATCH (cada id puesto en null), nunca un PUT del mes completo, que la
+    // regla bloquea siempre.
+    const patchVaciado = {};
+    entries.forEach(e => {
+      if (e.hogarId || e.person === activePerson) patchVaciado[e.id] = null;
+    });
+    const entriesRestantes = entries.filter(e => !(e.hogarId || e.person === activePerson));
+    setEntries(entriesRestantes);
+    setSettings(prev => ({
+      ...prev,
+      [activePerson]: defaultPropia
+    }));
     setConfirmingReset(false);
-    const r1 = await storageSetRetry(`entries:${month}`, JSON.stringify(arrayAMapaPorId(emptyEntries)), true);
-    const r2 = await storageSetRetry(`settings:${month}`, JSON.stringify(defaultSett), true);
+    const r1 = Object.keys(patchVaciado).length > 0 ? await storageUpdateRetry(`entries:${month}`, JSON.stringify(patchVaciado), true) : true;
+    const r2 = await storageSetRetry(`settings:${month}:${activePerson}`, JSON.stringify(defaultPropia), true);
     if (!r1 || !r2) setErrorMsg("No se pudo reiniciar el mes del todo. Probá de nuevo.");
   }
   function togglePagado(id) {

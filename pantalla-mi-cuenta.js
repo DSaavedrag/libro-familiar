@@ -415,7 +415,14 @@ export function PersonColumn({
     }, /*#__PURE__*/React.createElement("input", {
       className: "lf-input lf-col-pct-input",
       type: "number",
-      value: draft.pct[c.id],
+      // Antes pasaba draft.pct[c.id] directo: para una agrupación recién
+      // creada, que todavía no tiene entrada en el % guardado, eso es
+      // `undefined` — React arranca el input como "no controlado" y al
+      // primer cambio pasa a "controlado", lo que generaba un warning y un
+      // comportamiento poco confiable (a veces el primer toque no
+      // registraba el cambio). El slider de al lado ya se defendía con
+      // `Number(...) || 0`; ahora este input hace lo mismo.
+      value: Number(draft.pct[c.id]) || 0,
       onChange: e => setPctClamped(c.id, e.target.value)
     }), "%"), /*#__PURE__*/React.createElement("span", {
       className: "lf-col-pct-amount"
