@@ -329,32 +329,35 @@ export function LibroFamiliar() {
     } catch {
       // sigue de largo, se prueba el formato viejo abajo
     }
-    return null;
-  }
-  // Trae la parametrización combinada {diego, yani} de un mes, probando
-  // primero las claves nuevas (una por persona) y, si a alguna le falta,
-  // completando con el formato viejo combinado ("settings:{mes}", sin
-  // separar por persona) — así los meses guardados antes de este cambio se
-  // siguen leyendo bien, aunque los guardados nuevos ya no usen ese formato.
-  async function cargarSettingsDeMes(m) {
-    const [diego, yani] = await Promise.all([leerSettingsPersona(m, "diego"), leerSettingsPersona(m, "yani")]);
-    if (diego && yani) return {
-      diego,
-      yani
-    };
+    // Formato viejo: un solo bloque combinado "settings:{mes}" con
+    // {diego, yani} adentro, de antes de separar la clave por persona.
     try {
       const r = await window.storage.get(`settings:${m}`, true);
       if (r) {
         const parsed = JSON.parse(r.value);
-        if (parsed.diego && parsed.yani) {
-          return {
-            diego: diego || parsed.diego,
-            yani: yani || parsed.yani
-          };
-        }
+        if (parsed[personId]) return parsed[personId];
       }
     } catch {
-      // nada guardado en ningún formato para este mes
+      // nada guardado en ningún formato para este mes/persona
+    }
+    return null;
+  }
+  // Busca la parametrización de UNA persona, mes por mes hacia atrás, hasta
+  // encontrar la última vez que la guardó (o hasta CANT_MESES_ATRAS si nunca
+  // la guardó). Antes esto sólo miraba "este mes" y, si faltaba, el mes
+  // inmediato anterior — y encima exigía que AMBAS personas tuvieran algo
+  // guardado ese mismo mes para devolver cualquier cosa (si sólo una de las
+  // dos había parametrizado, se descartaba esa también y las dos quedaban en
+  // los valores por defecto). Resultado: bastaba con que una persona se
+  // saltee un mes, o que hicieran falta más de dos meses sin tocar nada,
+  // para que la parametrización "se resetee" a 20/20/... en vez de heredar
+  // lo último que esa persona sí había puesto. Ahora cada persona hereda lo
+  // suyo de forma independiente, mirando tan atrás como haga falta.
+  const CANT_MESES_ATRAS = 24;
+  async function leerSettingsPersonaHeredado(m, personId) {
+    for (let i = 0; i <= CANT_MESES_ATRAS; i++) {
+      const encontrado = await leerSettingsPersona(shiftMonth(m, -i), personId);
+      if (encontrado) return encontrado;
     }
     return null;
   }
@@ -369,7 +372,7 @@ export function LibroFamiliar() {
       } catch {
         ent = [];
       }
-      const defaultSett = {
+      let sett = {
         diego: {
           pct: pctPorDefecto(agrupaciones.diego)
         },
@@ -377,15 +380,12 @@ export function LibroFamiliar() {
           pct: pctPorDefecto(agrupaciones.yani)
         }
       };
-      let sett = defaultSett;
       try {
-        const actual = await cargarSettingsDeMes(m);
-        if (actual) {
-          sett = actual;
-        } else {
-          const prev = await cargarSettingsDeMes(shiftMonth(m, -1));
-          if (prev) sett = prev;
-        }
+        const [diego, yani] = await Promise.all([leerSettingsPersonaHeredado(m, "diego"), leerSettingsPersonaHeredado(m, "yani")]);
+        sett = {
+          diego: diego || sett.diego,
+          yani: yani || sett.yani
+        };
       } catch {
         // sin parametrización guardada todavía, se usan los valores por defecto
       }
