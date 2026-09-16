@@ -32,8 +32,7 @@ export function entriesActualizadasPorFijos(entries, list, cotizacionDolar) {
     if (!e.fijoId || e.pagado) return e;
     const item = list.find(f => f.id === e.fijoId);
     if (!item) return e;
-    changed = true;
-    return {
+    const actualizado = {
       ...e,
       monto: montoArsDeFijo(item, cotizacionDolar),
       categoria: item.categoria,
@@ -42,6 +41,17 @@ export function entriesActualizadasPorFijos(entries, list, cotizacionDolar) {
       cotizacionUsada: item.moneda === "USD" ? Number(cotizacionDolar) || 0 : undefined,
       esTarjeta: Boolean(item.esTarjeta)
     };
+    // Importante: sólo cuenta como "changed" si algo realmente cambió de
+    // valor — antes se marcaba changed=true con sólo encontrar el fijo
+    // (aunque el resultado fuera idéntico al que ya tenía el movimiento),
+    // así que esta función nunca podía devolver null mientras hubiera al
+    // menos un fijo sin pagar. Eso hacía que cada llamada generara un
+    // objeto "nuevo" (misma data, otra referencia) y volviera a persistir
+    // en un loop apenas el efecto de menu.js empezó a depender también de
+    // `entries` (ver ahí el porqué).
+    if (JSON.stringify(actualizado) === JSON.stringify(e)) return e;
+    changed = true;
+    return actualizado;
   });
   return changed ? next : null;
 }
@@ -55,14 +65,18 @@ export function entriesActualizadasPorHogar(entries, list, split) {
     if (!e.hogarId || e.pagado) return e;
     const item = list.find(f => f.id === e.hogarId);
     if (!item) return e;
-    changed = true;
     const pct = Number(split[e.person]) || 0;
-    return {
+    const actualizado = {
       ...e,
       categoria: item.categoria,
       monto: Math.round((Number(item.monto) || 0) * pct / 100 * 100) / 100,
       descripcion: `${item.nombre || "Gasto fijo"} (hogar)`
     };
+    // Misma razón que en entriesActualizadasPorFijos: sólo cuenta como
+    // "changed" si algo realmente cambió, si no esto nunca converge.
+    if (JSON.stringify(actualizado) === JSON.stringify(e)) return e;
+    changed = true;
+    return actualizado;
   });
   return changed ? next : null;
 }
@@ -139,4 +153,39 @@ export function armarEntriesHogarFaltantes({
     });
   });
   return nuevas;
+}
+
+// Colapsa movimientos de fijos duplicados: más de un movimiento con el mismo
+// fijoId (o, para hogar, el mismo hogarId + person) en el mismo mes. Esto
+// podía pasar porque el efecto que crea los fijos automáticamente (ver
+// menu.js) leía `entries` de un render que todavía no reflejaba el
+// movimiento que un disparo anterior del mismo efecto ya había creado — dos
+// disparos casi simultáneos (por ejemplo, al cargar fijos/fijosHogar/
+// cotización uno detrás del otro al abrir la app) podían creer los dos que
+// "falta el movimiento" y crear cada uno el suyo, con ids distintos. Entre
+// varios duplicados se queda con el que está "pagado" (si hay uno — es el
+// que ya se congeló con un valor real) y, si no, con el más nuevo (mayor
+// `ts`). Devuelve la lista sin los duplicados, en cualquier orden — quien
+// llama la puede volver a ordenar si hace falta.
+export function dedupeFijoEntries(entries) {
+  function mejorDeLosDos(a, b) {
+    if (Boolean(a.pagado) !== Boolean(b.pagado)) return a.pagado ? a : b;
+    return (Number(b.ts) || 0) > (Number(a.ts) || 0) ? b : a;
+  }
+  const porFijo = new Map();
+  const porHogar = new Map();
+  const resto = [];
+  for (const e of entries) {
+    if (e.fijoId) {
+      const previo = porFijo.get(e.fijoId);
+      porFijo.set(e.fijoId, previo ? mejorDeLosDos(previo, e) : e);
+    } else if (e.hogarId) {
+      const clave = `${e.hogarId}:${e.person}`;
+      const previo = porHogar.get(clave);
+      porHogar.set(clave, previo ? mejorDeLosDos(previo, e) : e);
+    } else {
+      resto.push(e);
+    }
+  }
+  return [...resto, ...porFijo.values(), ...porHogar.values()];
 }

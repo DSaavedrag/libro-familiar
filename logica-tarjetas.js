@@ -102,12 +102,21 @@ export async function escribirCuotas({
 // Borra del mes que corresponda (donde sea, no solo el actual) todos los
 // movimientos que ya se hayan guardado de una compra en cuotas — se usa
 // antes de reescribirla al editarla, y al borrarla del todo.
+//
+// Devuelve true/false según si se pudo borrar de verdad. Antes esta función
+// no devolvía nada: si Firebase rechazaba el PATCH (por ejemplo, permiso
+// denegado porque el movimiento quedó con un `person` que no es el de quien
+// está borrando, o la sesión estaba corriendo una versión vieja de la app
+// de antes de este cambio), quien llamaba nunca se enteraba — el registro
+// de la compra desaparecía de "Tarjetas" igual, dando la falsa sensación de
+// que se borró todo, mientras los movimientos quedaban sueltos en ese mes
+// para siempre.
 async function removeEntryFromOtherMonth(mKey, tarjetaId) {
   try {
     const r = await window.storage.get(`entries:${mKey}`, true);
     const existing = r ? mapaAArray(JSON.parse(r.value)) : [];
     const aBorrar = existing.filter(e => e.tarjetaId === tarjetaId);
-    if (aBorrar.length === 0) return;
+    if (aBorrar.length === 0) return true; // no había nada que borrar acá: éxito
     // Borrar puntual (PATCH, solo los ids que corresponden), nunca un PUT
     // del mes completo — la regla de seguridad bloquea siempre reemplazar
     // "entries:{mes}" entero de una. De paso corrige un bug viejo: los
@@ -117,26 +126,34 @@ async function removeEntryFromOtherMonth(mKey, tarjetaId) {
     aBorrar.forEach(e => {
       patch[e.id] = null;
     });
-    await storageUpdateRetry(`entries:${mKey}`, JSON.stringify(patch), true);
+    const res = await storageUpdateRetry(`entries:${mKey}`, JSON.stringify(patch), true);
+    return Boolean(res);
   } catch {
-    // si no hay nada guardado para ese mes, no hay nada que borrar
+    return false;
   }
 }
+// Devuelve la lista de meses (YYYY-MM) donde el borrado NO se pudo completar
+// — vacía si se borró todo bien. Quien llama (menu.js) la usa para avisar en
+// vez de asumir en silencio que salió todo bien.
 export async function removeInstallments({
   purchase,
   month,
   entries,
   persistEntries
 }) {
+  const fallidos = [];
   for (let i = 0; i < purchase.cuotasTotal; i++) {
     const mKey = shiftMonth(purchase.mesInicio, i);
+    let ok;
     if (mKey === month) {
-      await persistEntries(entries.filter(e => e.tarjetaId !== purchase.id));
+      ok = await persistEntries(entries.filter(e => e.tarjetaId !== purchase.id));
     } else {
-      await removeEntryFromOtherMonth(mKey, purchase.id);
+      ok = await removeEntryFromOtherMonth(mKey, purchase.id);
     }
+    if (!ok) fallidos.push(mKey);
     if (i < purchase.cuotasTotal - 1) await new Promise(r => setTimeout(r, 100));
   }
+  return fallidos;
 }
 
 // Chequea, mes por mes, si las cuotas de una compra realmente están

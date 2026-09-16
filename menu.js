@@ -19,7 +19,7 @@ import { PersonColumn } from "./pantalla-mi-cuenta.js";
 import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
 import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
-import { montoArsDeFijo, entriesActualizadasPorFijos, entriesActualizadasPorHogar, armarEntriesFijosFaltantes, armarEntriesHogarFaltantes } from "./logica-fijos.js";
+import { montoArsDeFijo, entriesActualizadasPorFijos, entriesActualizadasPorHogar, armarEntriesFijosFaltantes, armarEntriesHogarFaltantes, dedupeFijoEntries } from "./logica-fijos.js";
 import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta } from "./logica-movimientos.js";
 import { entrarOCrearCuenta, suscribirseASesion, cerrarSesion, buscarJugadorPorUid, obtenerJugadoresVinculados, vincularJugadorPropio } from "./auth.js";
 
@@ -488,12 +488,23 @@ export function LibroFamiliar() {
   // USD — en cuanto se paga, queda congelado en ese valor: así es como se
   // sabe el saldo real disponible en cualquier momento.
   //
-  // No depende de `entries` a propósito (sólo lo lee): si dependiera, cada
-  // persistEntries que dispara volvería a correr el efecto en un ciclo. Al
-  // no estar en las dependencias, sólo se re-evalúa cuando cambia algo que
-  // puede requerir crear o resincronizar movimientos de fijos (la lista de
-  // fijos, el reparto del hogar, la cotización, o el mes) — que es
-  // exactamente cuándo hace falta.
+  // SÍ depende de `entries` (antes no, a propósito, para evitar que cada
+  // persistEntries volviera a correr el efecto en ciclo) — pero esa
+  // exclusión terminó siendo la causa de gastos fijos duplicados o hasta
+  // triplicados: fijos/fijosHogar/cotización se cargan de a uno al abrir la
+  // app (cada `await` por separado), así que este efecto se disparaba varias
+  // veces seguidas, y como no dependía de `entries` cada disparo volvía a
+  // leer la versión de `entries` del render en que arrancó — si el disparo
+  // anterior todavía no había terminado de persistir el movimiento que
+  // acababa de crear, el siguiente disparo no lo veía, pensaba que "todavía
+  // falta" y creaba OTRO con un id distinto. Ahora que depende de `entries`,
+  // cada disparo parte siempre de la versión más reciente ya confirmada — y
+  // como armarEntriesFijosFaltantes/entriesActualizadasPorFijos son
+  // idempotentes (no hacen nada si ya está todo al día), esto converge solo
+  // sin loop: en cuanto no falta ni hay que resincronizar nada, `changed`
+  // da false y el efecto no vuelve a persistir. De paso, cada corrida
+  // también limpia (dedupeFijoEntries) cualquier duplicado que haya quedado
+  // de antes de este arreglo, en cualquier mes que se abra.
   //
   // Importante: los fijos PERSONALES (no los de Hogar) sólo se crean/
   // resincronizan para `activePerson` (quien tiene la sesión abierta en
@@ -542,9 +553,13 @@ export function LibroFamiliar() {
       next = actualizadasHogar;
       changed = true;
     }
+    const sinDuplicados = dedupeFijoEntries(next);
+    if (sinDuplicados.length !== next.length) {
+      next = sinDuplicados;
+      changed = true;
+    }
     if (changed) persistEntries(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, activePerson, month, fijos, fijosHogar, splitHogar, cotizacionDolar]);
+  }, [loading, activePerson, month, entries, fijos, fijosHogar, splitHogar, cotizacionDolar]);
 
   useEffect(() => {
     (async () => {
@@ -907,13 +922,28 @@ export function LibroFamiliar() {
     }
   }
   async function borrarConsumoTarjeta(personId, purchase) {
-    await removeInstallments({
+    let fallidos = await removeInstallments({
       purchase,
       month,
       entries,
       persistEntries
     });
+    if (fallidos.length > 0) {
+      // Un segundo intento nomás para los que fallaron (removeInstallments ya
+      // es "seguro" de repetir: los meses que sí se borraron devuelven éxito
+      // de una porque no encuentran nada más que borrar) — cubre una falla
+      // pasajera de red sin marear al usuario con un error por las dudas.
+      fallidos = await removeInstallments({
+        purchase,
+        month,
+        entries,
+        persistEntries
+      });
+    }
     await saveTarjetasFor(personId, (tarjetas[personId] || []).filter(p => p.id !== purchase.id));
+    if (fallidos.length > 0) {
+      setErrorMsg(`"${purchase.descripcion}": se eliminó de la lista de Tarjetas, pero no se pudieron borrar los movimientos de ${fallidos.map(monthLabel).join(", ")} — probablemente un problema de permisos. Avisame para revisarlo.`);
+    }
   }
   async function revisarCuotasTarjeta(personId, purchase) {
     const faltantes = await detectarCuotasFaltantes({
@@ -1049,13 +1079,24 @@ export function LibroFamiliar() {
     await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? registro : p));
   }
   async function borrarConsumoTarjetaHogar(purchase) {
-    await removeInstallments({
+    let fallidos = await removeInstallments({
       purchase,
       month,
       entries,
       persistEntries
     });
+    if (fallidos.length > 0) {
+      fallidos = await removeInstallments({
+        purchase,
+        month,
+        entries,
+        persistEntries
+      });
+    }
     await saveTarjetasHogar(tarjetasHogar.filter(p => p.id !== purchase.id));
+    if (fallidos.length > 0) {
+      setErrorMsg(`"${purchase.descripcion}": se eliminó de la lista de Tarjetas del hogar, pero no se pudieron borrar los movimientos de ${fallidos.map(monthLabel).join(", ")} — probablemente un problema de permisos. Avisame para revisarlo.`);
+    }
   }
   async function revisarCuotasTarjetaHogar(purchase) {
     const faltantes = await detectarCuotasFaltantes({
