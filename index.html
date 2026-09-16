@@ -77,7 +77,11 @@ window.storage = {
       const res = await fetch(
         `${window.LF_FIREBASE_URL}/${window.LF_HOGAR_ID}/${encodeURIComponent(key)}.json${authParam}`
       );
-      if (!res.ok) return null;
+      if (!res.ok) {
+        const texto = await res.text().catch(() => "(sin cuerpo)");
+        console.error("storage.get RECHAZADO", { key, status: res.status, respuesta: texto });
+        return null;
+      }
       const data = await res.json();
       if (data === null || data === undefined) return null;
       return { value: JSON.stringify(data) };
@@ -99,7 +103,15 @@ window.storage = {
           body: JSON.stringify(parsed),
         }
       );
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // Antes esto sólo devolvía null sin decir por qué — así no había
+        // forma de saber, sin ir a buscar a mano en la pestaña Network de
+        // las herramientas de desarrollador, qué mandó la app ni qué
+        // contestó Firebase. Ahora lo imprime solo en la consola.
+        const texto = await res.text().catch(() => "(sin cuerpo)");
+        console.error("storage.set RECHAZADO", { key, status: res.status, body: parsed, respuesta: texto });
+        return null;
+      }
       return true;
     } catch (e) {
       console.error("storage.set error", key, e);
@@ -126,7 +138,15 @@ window.storage = {
           body: JSON.stringify(parsed),
         }
       );
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // Mismo motivo que en "set": mostrar en la consola, sin que haga
+        // falta ir a buscarlo a mano, exactamente qué se intentó guardar
+        // (los ids y valores del PATCH) y qué contestó Firebase (status y
+        // el texto del error, por ejemplo "Permission denied").
+        const texto = await res.text().catch(() => "(sin cuerpo)");
+        console.error("storage.update RECHAZADO", { key, status: res.status, body: parsed, respuesta: texto });
+        return null;
+      }
       return true;
     } catch (e) {
       console.error("storage.update error", key, e);
