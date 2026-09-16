@@ -167,7 +167,21 @@ export function armarEntriesHogarFaltantes({
 // que ya se congeló con un valor real) y, si no, con el más nuevo (mayor
 // `ts`). Devuelve la lista sin los duplicados, en cualquier orden — quien
 // llama la puede volver a ordenar si hace falta.
-export function dedupeFijoEntries(entries) {
+//
+// `soloPersona`: si se pasa, esta función NUNCA junta ni borra un
+// movimiento cuyo `person` no sea `soloPersona` (los hogar, con `hogarId`,
+// siempre se pueden tocar). Esto existe por un 401 real: la sesión de una
+// persona sólo tiene permiso, según las reglas de seguridad de Firebase,
+// para escribir/borrar sus propios movimientos (o los del hogar) — nunca
+// los del otro. Si por lo que sea llegaran a existir dos movimientos con el
+// mismo fijoId pero de personas distintas (por ejemplo, arrastrados de una
+// versión vieja del código), sin este resguardo el dedupe podía intentar
+// borrar el del OTRO, y Firebase lo rechazaba con permiso denegado — un mes
+// nunca visitado antes se quedaba mostrando ese error apenas se abría. Con
+// `soloPersona`, esos casos quedan sin tocar acá (los deja para que la
+// propia sesión del otro los limpie) en vez de generar un borrado que
+// siempre va a fallar.
+export function dedupeFijoEntries(entries, soloPersona) {
   function mejorDeLosDos(a, b) {
     if (Boolean(a.pagado) !== Boolean(b.pagado)) return a.pagado ? a : b;
     return (Number(b.ts) || 0) > (Number(a.ts) || 0) ? b : a;
@@ -176,13 +190,14 @@ export function dedupeFijoEntries(entries) {
   const porHogar = new Map();
   const resto = [];
   for (const e of entries) {
-    if (e.fijoId) {
-      const previo = porFijo.get(e.fijoId);
-      porFijo.set(e.fijoId, previo ? mejorDeLosDos(previo, e) : e);
-    } else if (e.hogarId) {
+    if (e.hogarId) {
       const clave = `${e.hogarId}:${e.person}`;
       const previo = porHogar.get(clave);
       porHogar.set(clave, previo ? mejorDeLosDos(previo, e) : e);
+    } else if (e.fijoId && (!soloPersona || e.person === soloPersona)) {
+      const clave = soloPersona ? e.fijoId : `${e.fijoId}:${e.person}`;
+      const previo = porFijo.get(clave);
+      porFijo.set(clave, previo ? mejorDeLosDos(previo, e) : e);
     } else {
       resto.push(e);
     }

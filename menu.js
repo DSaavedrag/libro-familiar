@@ -553,7 +553,7 @@ export function LibroFamiliar() {
       next = actualizadasHogar;
       changed = true;
     }
-    const sinDuplicados = dedupeFijoEntries(next);
+    const sinDuplicados = dedupeFijoEntries(next, activePerson);
     if (sinDuplicados.length !== next.length) {
       next = sinDuplicados;
       changed = true;
