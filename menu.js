@@ -849,6 +849,19 @@ export function LibroFamiliar() {
     const res = await storageSetRetry(`etiquetasTarjeta:${personId}`, JSON.stringify(list), true);
     if (!res) setErrorMsg("No se pudieron guardar las etiquetas. Probá de nuevo.");
   }
+  // Si ya se tocó "Pagar Tarjeta" este mes para una persona, todo lo que
+  // debía este mes quedó marcado `pagado: true` (ver entriesConTarjetaPagada)
+  // — no queda nada pendiente. Eso quiere decir que el resumen de este mes
+  // ya se cerró: un consumo nuevo que se cargue de acá en más no es de este
+  // resumen, es del que viene. Antes había que darse cuenta de esto a mano y
+  // moverse al mes siguiente para cargarlo ahí, volviendo después al mes
+  // vigente — ahora el mes de arranque de un consumo nuevo se calcula solo.
+  // Si todavía no se cargó ni pagó nada este mes (nada que mirar), se sigue
+  // usando el mes vigente como siempre.
+  function tarjetaYaCerradaEsteMes(personId) {
+    const propios = entries.filter(e => e.person === personId && (e.tarjetaId || e.esTarjeta));
+    return propios.length > 0 && propios.every(e => e.pagado);
+  }
   async function cargarConsumoTarjeta(personId, {
     descripcion,
     monto,
@@ -859,6 +872,7 @@ export function LibroFamiliar() {
     const montoTotal = Number(monto) || 0;
     const montoCuota = Math.round(montoTotal / cuotasNum * 100) / 100;
     const purchaseId = `tarjeta-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const mesInicio = tarjetaYaCerradaEsteMes(personId) ? shiftMonth(month, 1) : month;
     const mesesFallidos = await escribirCuotas({
       purchaseId,
       personId,
@@ -866,7 +880,7 @@ export function LibroFamiliar() {
       descripcion,
       cuotasNum,
       montoCuota,
-      startMonth: month,
+      startMonth: mesInicio,
       writeEntriesForMonth,
       hogar: false
     });
@@ -877,7 +891,7 @@ export function LibroFamiliar() {
       montoTotal,
       montoCuota,
       cuotasTotal: cuotasNum,
-      mesInicio: month,
+      mesInicio,
       mesesFallidos
     };
     await saveTarjetasFor(personId, [registro, ...(tarjetas[personId] || [])]);
@@ -1019,13 +1033,17 @@ export function LibroFamiliar() {
     const montoTotal = Number(monto) || 0;
     const montoCuotaTotal = Math.round(montoTotal / cuotasNum * 100) / 100;
     const purchaseId = `tarjetahogar-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    // Misma idea que en el consumo personal (ver tarjetaYaCerradaEsteMes): si
+    // quien está cargando ya pagó su tarjeta este mes, un consumo de hogar
+    // nuevo tampoco es de este resumen — arranca en el mes que viene.
+    const mesInicio = tarjetaYaCerradaEsteMes(activePerson) ? shiftMonth(month, 1) : month;
     const mesesFallidos = await escribirCuotas({
       purchaseId,
       categoria,
       descripcion,
       cuotasNum,
       montoCuotaTotal,
-      startMonth: month,
+      startMonth: mesInicio,
       writeEntriesForMonth,
       hogar: true,
       splitHogar
@@ -1037,7 +1055,7 @@ export function LibroFamiliar() {
       montoTotal,
       montoCuota: montoCuotaTotal,
       cuotasTotal: cuotasNum,
-      mesInicio: month,
+      mesInicio,
       mesesFallidos
     };
     await saveTarjetasHogar([registro, ...tarjetasHogar]);
