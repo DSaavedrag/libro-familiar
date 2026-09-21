@@ -1,9 +1,18 @@
-      /* Toda la tipografía de Líah usa "Spicy Rice" (antes: Roboto Slab para
-         títulos, IBM Plex Sans para texto, IBM Plex Mono para números) —
-         pedido explícito de Diego. Sólo tiene un peso (400), así que los
-         font-weight que quedaron en las reglas de abajo ya no cambian nada
-         visualmente, pero no hace falta sacarlos: no rompen nada. */
-      @import url('https://fonts.googleapis.com/css2?family=Spicy+Rice&display=swap');
+      /* Toda la tipografía de Líah usa "Spicy Rice" — pedido explícito de
+         Diego. Sólo tiene un peso (400), así que los font-weight que
+         quedaron en las reglas de abajo ya no cambian nada visualmente,
+         pero no hace falta sacarlos: no rompen nada.
+
+         Excepción: los NÚMEROS (montos, porcentajes, cotización) usan
+         "IBM Plex Mono" en vez de Spicy Rice — es una tipografía cursiva
+         decorativa, pensada para letras, y con los dígitos los números
+         quedaban amontonados y difíciles de leer al tamaño chico en que se
+         muestran acá. IBM Plex Mono es monoespaciada (cada dígito ocupa el
+         mismo ancho, no se pegan entre sí) y se lee bien de chica — se usa
+         a través de la variable --font-num en vez de escribirla suelta en
+         cada selector, así queda un solo lugar para cambiarla si hiciera
+         falta más adelante. */
+      @import url('https://fonts.googleapis.com/css2?family=Spicy+Rice&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
       .lf-root {
         /* Paleta sacada del logo (Líah): rojo/dorado sobre negro y blanco,
@@ -26,6 +35,7 @@
         --c-placeres: #B5502F;
         --pos: #4F7A5B;
         --neg: #C31015;
+        --font-num: 'IBM Plex Mono', monospace;
 
         font-family: 'Spicy Rice', cursive;
         color: var(--ink);
@@ -522,7 +532,7 @@
       .lf-input:focus { outline: 2px solid var(--ui-accent, var(--diego)); outline-offset: 1px; }
       .lf-input-monto {
         flex: 0 0 140px;
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-weight: 600;
       }
 
@@ -670,7 +680,7 @@
       .lf-hogar-split-nums {
         display: flex;
         justify-content: space-between;
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 12.5px;
         font-weight: 600;
         margin-bottom: 6px;
@@ -732,7 +742,7 @@
         display: flex;
         justify-content: flex-end;
         gap: 14px;
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 10.5px;
         margin-top: 1px;
       }
@@ -800,7 +810,7 @@
         border: 1px solid var(--paper-line);
         border-radius: 8px;
       }
-      .lf-col-budget-input { font-family: 'Spicy Rice', cursive; font-weight: 600; }
+      .lf-col-budget-input { font-family: var(--font-num, 'IBM Plex Mono', monospace); font-weight: 600; }
       .lf-use-income-btn-col {
         border: 1px dashed var(--accent);
         color: var(--accent);
@@ -821,7 +831,7 @@
         display: flex;
         align-items: center;
         gap: 4px;
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 12px;
       }
       .lf-col-pct-input {
@@ -831,7 +841,7 @@
         text-align: right;
       }
       .lf-col-pct-amount {
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 11.5px;
         font-weight: 600;
         color: var(--accent);
@@ -903,7 +913,7 @@
       }
       .lf-col-cat-num-wrap { display: flex; flex-direction: column; align-items: flex-end; }
       .lf-col-cat-restante {
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 10px;
         font-weight: 500;
       }
@@ -941,7 +951,7 @@
          la tarjeta oscura para no fundirse con ella. */
       .lf-tarjeta-form .lf-add-btn { background: var(--ui-accent, #C31015); color: #fff; }
       .lf-tarjeta-form-row { display: flex; gap: 8px; align-items: flex-end; }
-      .lf-tarjeta-monto { flex: 1; font-family: 'Spicy Rice', cursive; }
+      .lf-tarjeta-monto { flex: 1; font-family: var(--font-num, 'IBM Plex Mono', monospace); }
       .lf-tarjeta-cuotas { display: flex; flex-direction: column; gap: 3px; }
       .lf-tarjeta-cuotas-input { width: 56px; text-align: center; }
       .lf-tarjeta-preview {
@@ -961,7 +971,7 @@
       }
       .lf-tarjeta-item-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
       .lf-tarjeta-item-name { font-size: 12px; color: var(--ui-text, var(--paper)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .lf-tarjeta-item-sub { font-size: 10.5px; color: var(--ink-soft); font-family: 'Spicy Rice', cursive; }
+      .lf-tarjeta-item-sub { font-size: 10.5px; color: var(--ink-soft); font-family: var(--font-num, 'IBM Plex Mono', monospace); }
       .lf-tarjeta-item-cat { font-weight: 600; }
       .lf-tarjeta-item-split {
         display: flex;
@@ -1141,7 +1151,7 @@
         font-weight: 600;
         margin-bottom: 3px;
       }
-      .lf-tarjeta-detalle-cat-total { margin-left: auto; font-family: 'Spicy Rice', cursive; color: var(--ui-text, var(--paper)); }
+      .lf-tarjeta-detalle-cat-total { margin-left: auto; font-family: var(--font-num, 'IBM Plex Mono', monospace); color: var(--ui-text, var(--paper)); }
       .lf-tarjeta-detalle-item {
         display: flex;
         justify-content: space-between;
@@ -1224,18 +1234,18 @@
       }
       .lf-cotizacion-left { display: flex; flex-direction: column; gap: 3px; }
       .lf-cotizacion-valor {
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 15px;
         font-weight: 600;
         color: var(--ui-text, var(--paper));
       }
       .lf-cotizacion-edit-row { display: flex; align-items: center; gap: 4px; }
       .lf-cotizacion-prefix, .lf-cotizacion-suffix {
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 12.5px;
         color: var(--ink-soft);
       }
-      .lf-cotizacion-input { width: 90px; font-family: 'Spicy Rice', cursive; font-weight: 600; }
+      .lf-cotizacion-input { width: 90px; font-family: var(--font-num, 'IBM Plex Mono', monospace); font-weight: 600; }
       .lf-cotizacion-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
       .lf-cotizacion-live-btn {
         display: flex;
@@ -1281,7 +1291,7 @@
         padding: 3px 0;
       }
       .lf-fijo-item-name { flex: 1; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .lf-fijo-item-monto { font-family: 'Spicy Rice', cursive; font-weight: 500; }
+      .lf-fijo-item-monto { font-family: var(--font-num, 'IBM Plex Mono', monospace); font-weight: 500; }
       .lf-fijo-item-cargar {
         border: 1px solid var(--accent, var(--ink));
         color: var(--accent, var(--ink));
@@ -1333,7 +1343,7 @@
       .lf-fijo-nombre { flex: 1; font-size: 12.5px; padding: 6px 8px; }
       .lf-fijo-monto {
         flex: 0 0 90px;
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 12.5px;
         padding: 6px 8px;
       }
@@ -1447,12 +1457,19 @@
         color: var(--ink-soft);
       }
       .lf-num {
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 15px;
         font-weight: 600;
       }
-      .lf-pos { color: var(--pos); }
-      .lf-neg { color: var(--neg); }
+      /* Antes el monto en sí (no sólo el puntito .lf-entry-dot) se pintaba de
+         verde/rojo fijo según fuera ingreso o egreso — con algunos colores
+         de "Tema" elegidos por el jugador (texto o fondo parecidos a esos
+         mismos verdes/rojos), el monto se volvía casi invisible. Ahora el
+         número usa siempre el color de texto parametrizable (--ui-text, con
+         el mismo fallback de siempre); el signo +/- que ya se antepone al
+         monto, y el puntito de color en la lista de Movimientos, siguen
+         alcanzando para distinguir ingreso de egreso de un vistazo. */
+      .lf-pos, .lf-neg { color: var(--ui-text, var(--paper)); }
 
       .lf-col-cats {
         border-top: 1px solid var(--paper-line);
@@ -1470,7 +1487,7 @@
       }
       .lf-col-mini-track { flex: 1 1 100%; width: 100%; overflow: hidden; }
       .lf-col-cat-label { color: var(--ink-soft); flex: 1; }
-      .lf-col-cat-num { font-family: 'Spicy Rice', cursive; font-weight: 500; }
+      .lf-col-cat-num { font-family: var(--font-num, 'IBM Plex Mono', monospace); font-weight: 500; }
       /* Cada fila de categoría (Ahorros, Necesidades...) se puede tocar para
          desplegar los movimientos uno por uno, igual que las etiquetas de
          tarjeta de arriba — para no depender solo del total. */
@@ -1571,7 +1588,7 @@
       .lf-entry-text { display: flex; flex-direction: column; min-width: 0; }
       .lf-entry-desc { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .lf-entry-cat { font-size: 10.5px; color: var(--ink-soft); }
-      .lf-entry-amt { font-family: 'Spicy Rice', cursive; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+      .lf-entry-amt { font-family: var(--font-num, 'IBM Plex Mono', monospace); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
       .lf-entry-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; }
       .lf-entry-amt-row { display: flex; align-items: center; gap: 4px; }
       .lf-entry-del {
@@ -1673,7 +1690,7 @@
       }
       .lf-bar-fill { height: 100%; border-radius: 999px; }
       .lf-bar-nums {
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 11.5px;
         color: var(--ink-soft);
         width: 170px;
@@ -1714,9 +1731,9 @@
         color: var(--ui-text, var(--paper));
         text-align: right;
       }
-      .lf-pct-suffix { font-family: 'Spicy Rice', cursive; font-size: 12.5px; color: rgba(237,230,214,0.7); }
+      .lf-pct-suffix { font-family: var(--font-num, 'IBM Plex Mono', monospace); font-size: 12.5px; color: rgba(237,230,214,0.7); }
       .lf-pct-total {
-        font-family: 'Spicy Rice', cursive;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
         font-size: 12px;
         color: var(--ink-soft);
         margin: 12px 0 0;
