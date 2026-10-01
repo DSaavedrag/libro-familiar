@@ -472,6 +472,38 @@
       }
       .lf-form-row:last-child { margin-bottom: 0; }
 
+      /* Botón que alterna entre la carga normal (Gasto/Ingreso) y "Trabajar
+         con saldos" (ver SaldosForm en components.js) — vive arriba del
+         formulario, visible en los dos modos para poder ir y volver. */
+      .lf-saldos-switch {
+        display: block;
+        width: 100%;
+        background: transparent;
+        border: 1px dashed var(--paper-line);
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-bottom: 10px;
+        color: var(--ui-text, var(--paper));
+        font-family: 'Spicy Rice', cursive;
+        font-size: 12.5px;
+        cursor: pointer;
+      }
+      .lf-saldos-switch:hover { background: rgba(237,230,214,0.08); }
+      .lf-saldos-form { display: flex; flex-direction: column; gap: 10px; }
+      .lf-saldos-list { display: flex; flex-direction: column; gap: 8px; }
+      .lf-saldos-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .lf-saldos-row .lf-col-cat-label { color: var(--ui-text, var(--paper)); }
+      .lf-saldos-input {
+        width: 120px;
+        margin-left: auto;
+        text-align: right;
+        font-family: var(--font-num, 'IBM Plex Mono', monospace);
+      }
+
       .lf-toggle {
         display: flex;
         border: 1px solid var(--paper-line);

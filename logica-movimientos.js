@@ -133,3 +133,58 @@ export function entriesConTarjetaPagada(entries, person) {
     pagado: true
   } : e);
 }
+
+// "Trabajar con saldos": Yani no tiene el hábito de cargar cada consumo —
+// cada tanto, lo único que hace es anotar cuánto le queda en cada
+// categoría. Hasta ahora, para que esos números cierren, había que hacer la
+// cuenta a mano e inventar un gasto suelto con el monto justo para que el
+// restante diera lo que ella anotó. Esto hace esa cuenta sola: a partir del
+// saldo que queda que la persona tipeó, arma (o actualiza) un único
+// movimiento "de ajuste" por categoría y por mes — el que hace falta para
+// que presupuesto - gastado dé exactamente ese número.
+//
+// El id es siempre el mismo para una persona+categoría+mes
+// ("ajuste-{person}-{categoria}-{mes}"), a propósito: volver a guardar un
+// saldo para la misma categoría este mes no apila ajustes nuevos, reemplaza
+// al anterior (ver idAjusteSaldo, que arma ese mismo id para poder sacarlo
+// de la cuenta de "gastado real" y para poder borrarlo si ya no hace falta).
+export function idAjusteSaldo(personId, categoriaId, month) {
+  return `ajuste-${personId}-${categoriaId}-${month}`;
+}
+
+// Devuelve:
+//  - undefined si `nuevoSaldo` está vacío o no es un número — no hay nada
+//    que guardar para esta categoría, quien llama no debe tocarla.
+//  - null si, haciendo la cuenta, no hace falta ningún ajuste (lo que ya
+//    está cargado alcanza para que el restante dé ese número solo) — quien
+//    llama debe sacar cualquier ajuste viejo de esta categoría, si había.
+//  - el movimiento de ajuste (objeto) si hace falta uno nuevo o actualizado.
+export function armarAjusteSaldo({
+  entries,
+  personId,
+  categoriaId,
+  nuevoSaldo,
+  presupuesto,
+  month
+}) {
+  if (nuevoSaldo === "" || nuevoSaldo === null || nuevoSaldo === undefined || isNaN(Number(nuevoSaldo))) return undefined;
+  const id = idAjusteSaldo(personId, categoriaId, month);
+  // Lo ya cargado "de verdad" en esta categoría, sin contar un ajuste previo
+  // (si no, el ajuste viejo se sumaría a sí mismo al recalcularlo).
+  const gastadoReal = (entries || []).filter(e => e.id !== id && e.tipo === "gasto" && e.person === personId && e.categoria === categoriaId).reduce((s, e) => s + (Number(e.monto) || 0), 0);
+  const gastoNecesario = (Number(presupuesto) || 0) - Number(nuevoSaldo);
+  const plug = Math.round((gastoNecesario - gastadoReal) * 100) / 100;
+  // Menos de 50 centavos de diferencia: redondeo, no hace falta inventar un
+  // movimiento por eso — y si había uno de antes, ya no corresponde.
+  if (Math.abs(plug) < 0.5) return null;
+  return {
+    id,
+    person: personId,
+    tipo: "gasto",
+    categoria: categoriaId,
+    monto: plug,
+    descripcion: "Ajuste de saldo",
+    esAjusteSaldo: true,
+    ts: Date.now()
+  };
+}

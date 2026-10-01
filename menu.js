@@ -14,13 +14,13 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp, LogOut } from "lucide-react";
 import { PERSONAS, fmt, CATEGORIAS_DEFAULT, pctPorDefecto, iconoDe, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
 import { storageSetRetry, storageUpdateRetry, fetchCotizacionLive, arrayAMapaPorId, mapaAArray } from "./storage.js";
-import { Shell, EtiquetasTarjetaPicker, CotizacionWidget } from "./components.js";
+import { Shell, EtiquetasTarjetaPicker, CotizacionWidget, SaldosForm } from "./components.js";
 import { PersonColumn } from "./pantalla-mi-cuenta.js";
 import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
 import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
 import { montoArsDeFijo, entriesActualizadasPorFijos, entriesActualizadasPorHogar, armarEntriesFijosFaltantes, armarEntriesHogarFaltantes, dedupeFijoEntries } from "./logica-fijos.js";
-import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta } from "./logica-movimientos.js";
+import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta, idAjusteSaldo, armarAjusteSaldo } from "./logica-movimientos.js";
 import { entrarOCrearCuenta, suscribirseASesion, cerrarSesion, buscarJugadorPorUid, obtenerJugadoresVinculados, vincularJugadorPropio } from "./auth.js";
 
 export function LibroFamiliar() {
@@ -222,18 +222,23 @@ export function LibroFamiliar() {
     diego: null,
     yani: null
   });
-  // Tema visual: la mayor parte se aplica del jugador que inició sesión de
-  // verdad (activePerson, no viewingPerson) — cada uno ve su propia paleta
-  // elegida sin importar de quién es el libro que está mirando. Si no
-  // personalizó nada (temas[activePerson] es null/undefined), esa parte
-  // queda vacía y se ve la paleta por defecto de styles.css (sin pisar nada).
+  // Tema visual: se aplica el de quien se está MIRANDO (viewingPerson), no
+  // necesariamente el de quien inició la sesión (activePerson) — pedido
+  // explícito de Diego: al entrar a "Ver el libro del otro" tiene que verse
+  // con la paleta que ese otro jugador eligió para sí mismo, no con la
+  // propia. Como viewingPerson vuelve a ser activePerson en cuanto se sale
+  // de esa vista (ver el useEffect que lo resetea más abajo), esto no
+  // cambia nada para el caso normal (mirando tu propio libro). Si la
+  // persona que se está mirando no personalizó nada (temas[viewingPerson]
+  // es null/undefined), esa parte queda vacía y se ve la paleta por
+  // defecto de styles.css (sin pisar nada).
   //
-  // "Mi color" (identidad) es la excepción: no es privado, tiene que verse
+  // "Mi color" (identidad) sigue aparte: no es privado, tiene que verse
   // igual para los dos jugadores (es lo que distingue "Diego" de "Yani" en
   // pantallas compartidas como Hogar) — por eso se lee siempre de temas.diego
-  // y temas.yani, sin importar quién esté logueado, y se aplica encima de lo
-  // demás.
-  const miTema = (activePerson && temas[activePerson]) || null;
+  // y temas.yani, sin importar a quién se esté mirando, y se aplica encima
+  // de lo demás.
+  const miTema = (viewingPerson && temas[viewingPerson]) || null;
   const identidadDiego = (temas.diego && temas.diego.identidad) || null;
   const identidadYani = (temas.yani && temas.yani.identidad) || null;
   const temaStyle = {
@@ -303,6 +308,14 @@ export function LibroFamiliar() {
     etiquetaId: null,
     tarjetaCuotas: 1
   });
+  // "Trabajar con saldos" (ver armarAjusteSaldo en logica-movimientos.js):
+  // en vez de mostrar el formulario de carga de siempre (Gasto/Ingreso),
+  // muestra una lista de las categorías propias con el saldo que queda en
+  // cada una, editable — para quien prefiere anotar "me quedan $X" en vez
+  // de cargar cada consumo suelto. `draftSaldos` guarda lo que se va
+  // tipeando (por categoría) hasta tocar "Guardar".
+  const [modoSaldos, setModoSaldos] = useState(false);
+  const [draftSaldos, setDraftSaldos] = useState({});
   // Si la categoría elegida en el formulario ya no existe en las agrupaciones
   // del jugador activo (todavía no cargaron de Firebase, o la borró/renombró
   // desde el editor de agrupaciones), la reemplaza por la primera disponible.
@@ -1251,6 +1264,45 @@ export function LibroFamiliar() {
   const yani = totalsFor("yani");
   const budgetsDiego = budgetsFor(settings.diego.pct, diego.ingresos, agrupaciones.diego);
   const budgetsYani = budgetsFor(settings.yani.pct, yani.ingresos, agrupaciones.yani);
+  // "Trabajar con saldos" (ver el comentario largo en logica-movimientos.js,
+  // junto a armarAjusteSaldo): abrir el modo arranca `draftSaldos` con el
+  // restante actual de cada categoría propia, así el campo no aparece vacío
+  // sino mostrando lo que ya hay — quien lo usa sólo toca los números que
+  // cambiaron, el resto queda igual (y al guardar, "igual" no genera ningún
+  // ajuste nuevo).
+  function abrirModoSaldos() {
+    if (!activePerson) return;
+    const misBudgets = activePerson === "diego" ? budgetsDiego : budgetsYani;
+    const misDatos = activePerson === "diego" ? diego : yani;
+    const draft = {};
+    (agrupaciones[activePerson] || []).forEach(c => {
+      const restante = (misBudgets[c.id] || 0) - (misDatos.porCategoria[c.id] || 0);
+      draft[c.id] = String(Math.round(restante));
+    });
+    setDraftSaldos(draft);
+    setModoSaldos(true);
+  }
+  function guardarSaldos() {
+    if (!activePerson) return;
+    const misBudgets = activePerson === "diego" ? budgetsDiego : budgetsYani;
+    let next = entries;
+    (agrupaciones[activePerson] || []).forEach(c => {
+      const ajuste = armarAjusteSaldo({
+        entries: next,
+        personId: activePerson,
+        categoriaId: c.id,
+        nuevoSaldo: draftSaldos[c.id],
+        presupuesto: misBudgets[c.id],
+        month
+      });
+      if (ajuste === undefined) return; // este campo no se tocó, no hacer nada
+      const id = idAjusteSaldo(activePerson, c.id, month);
+      next = next.filter(e => e.id !== id);
+      if (ajuste) next = [ajuste, ...next];
+    });
+    if (next !== entries) persistEntries(next);
+    setModoSaldos(false);
+  }
   // Antes "Vista grupal" armaba una sola barra por categoría sumando lo de
   // Diego y Yani, porque las dos usaban el mismo set fijo de 4 categorías.
   // Ahora que cada uno arma las suyas (pueden no coincidir en ids ni en
@@ -1452,7 +1504,22 @@ export function LibroFamiliar() {
     className: "lf-error"
   }, errorMsg), activeTab === "registro" && viewingPerson !== activePerson && /*#__PURE__*/React.createElement("div", {
     className: "lf-viewing-other-note"
-  }, "Estás viendo el libro de ", PERSONAS[viewingPerson].label, " — no podés cargar movimientos acá. Volvé a tu libro para agregar los tuyos."), activeTab === "registro" && viewingPerson === activePerson && /*#__PURE__*/React.createElement("section", {
+  }, "Estás viendo el libro de ", PERSONAS[viewingPerson].label, " — no podés cargar movimientos acá. Volvé a tu libro para agregar los tuyos."), activeTab === "registro" && viewingPerson === activePerson && /*#__PURE__*/React.createElement("button", {
+    className: "lf-saldos-switch",
+    onClick: () => modoSaldos ? setModoSaldos(false) : abrirModoSaldos()
+  }, modoSaldos ? "← Volver a carga normal" : "Trabajar con saldos"), activeTab === "registro" && viewingPerson === activePerson && modoSaldos && /*#__PURE__*/React.createElement("section", {
+    className: "lf-form-card"
+  }, /*#__PURE__*/React.createElement(SaldosForm, {
+    categorias: agrupaciones[activePerson] || [],
+    draftSaldos: draftSaldos,
+    onChange: (catId, val) => setDraftSaldos({
+      ...draftSaldos,
+      [catId]: val
+    }),
+    onGuardar: guardarSaldos,
+    onCancelar: () => setModoSaldos(false),
+    ingresos: activePerson === "diego" ? diego.ingresos : yani.ingresos
+  })), activeTab === "registro" && viewingPerson === activePerson && !modoSaldos && /*#__PURE__*/React.createElement("section", {
     className: "lf-form-card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "lf-form-row"

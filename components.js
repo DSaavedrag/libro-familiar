@@ -971,3 +971,57 @@ export function Shell({
     style: style
   }, children);
 }
+
+// "Trabajar con saldos": pantalla alternativa a la carga normal de
+// Registro, para quien prefiere anotar cada tanto "me queda $X en tal
+// categoría" en vez de cargar cada consumo suelto (ver armarAjusteSaldo en
+// logica-movimientos.js para la cuenta que arma el ajuste correspondiente).
+// Sólo junta el valor que se va tipeando (`draftSaldos`, que vive en
+// menu.js) — no calcula ni guarda nada acá, eso lo hace onGuardar.
+export function SaldosForm({
+  categorias,
+  draftSaldos,
+  onChange,
+  onGuardar,
+  onCancelar,
+  ingresos
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "lf-saldos-form"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "lf-base-note"
+  }, "Para cada categoría, poné el saldo que te queda — la app arma sola el ajuste para que la cuenta cierre."), ingresos === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "lf-empty"
+  }, "Todavía no cargaste un ingreso este mes — el presupuesto de cada categoría va a dar $0."), /*#__PURE__*/React.createElement("div", {
+    className: "lf-saldos-list"
+  }, (categorias || []).map(c => /*#__PURE__*/React.createElement("div", {
+    className: "lf-saldos-row",
+    key: c.id
+  }, /*#__PURE__*/React.createElement(iconoDe(c.icon), {
+    size: 13,
+    style: {
+      color: c.color
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "lf-col-cat-label"
+  }, c.label), /*#__PURE__*/React.createElement("input", {
+    className: "lf-input lf-saldos-input",
+    type: "number",
+    inputMode: "decimal",
+    placeholder: "$ 0",
+    value: draftSaldos[c.id] ?? "",
+    onChange: e => onChange(c.id, e.target.value)
+  })))), (categorias || []).length === 0 && /*#__PURE__*/React.createElement("p", {
+    className: "lf-empty"
+  }, "Todavía no tenés categorías propias — armalas desde \"Agrupaciones\" en Mi cuenta."), /*#__PURE__*/React.createElement("div", {
+    className: "lf-tarjeta-form-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "lf-add-btn",
+    onClick: onGuardar
+  }, /*#__PURE__*/React.createElement(Check, {
+    size: 14
+  }), " Guardar saldos"), /*#__PURE__*/React.createElement("button", {
+    className: "lf-tarjeta-cancel",
+    onClick: onCancelar
+  }, "Cancelar")));
+}
