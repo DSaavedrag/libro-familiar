@@ -20,7 +20,7 @@ import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
 import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
 import { montoArsDeFijo, entriesActualizadasPorFijos, entriesActualizadasPorHogar, armarEntriesFijosFaltantes, armarEntriesHogarFaltantes, dedupeFijoEntries } from "./logica-fijos.js";
-import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta, idAjusteSaldo, armarAjusteSaldo } from "./logica-movimientos.js";
+import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta, idAjusteSaldo, armarAjusteSaldo, gastadoParaSaldos, pendienteParaSaldos } from "./logica-movimientos.js";
 import { entrarOCrearCuenta, suscribirseASesion, cerrarSesion, buscarJugadorPorUid, obtenerJugadoresVinculados, vincularJugadorPropio } from "./auth.js";
 
 export function LibroFamiliar() {
@@ -1270,13 +1270,20 @@ export function LibroFamiliar() {
   // sino mostrando lo que ya hay — quien lo usa sólo toca los números que
   // cambiaron, el resto queda igual (y al guardar, "igual" no genera ningún
   // ajuste nuevo).
+  //
+  // El restante que se precarga acá usa gastadoParaSaldos (deja afuera lo
+  // pendiente de pago), no data.porCategoria (que cuenta todo, pagado o no)
+  // — tiene que ser la MISMA cuenta que después hace armarAjusteSaldo al
+  // guardar, si no el número que se ve acá (antes de tocar nada) no
+  // coincidiría con lo que la app ya "sabe" y el ajuste saldría mal apenas
+  // se tocara "Guardar saldos" sin cambiar nada.
   function abrirModoSaldos() {
     if (!activePerson) return;
     const misBudgets = activePerson === "diego" ? budgetsDiego : budgetsYani;
-    const misDatos = activePerson === "diego" ? diego : yani;
     const draft = {};
     (agrupaciones[activePerson] || []).forEach(c => {
-      const restante = (misBudgets[c.id] || 0) - (misDatos.porCategoria[c.id] || 0);
+      const gastado = gastadoParaSaldos(entries, activePerson, c.id, idAjusteSaldo(activePerson, c.id, month));
+      const restante = (misBudgets[c.id] || 0) - gastado;
       draft[c.id] = String(Math.round(restante));
     });
     setDraftSaldos(draft);
@@ -1512,6 +1519,7 @@ export function LibroFamiliar() {
   }, /*#__PURE__*/React.createElement(SaldosForm, {
     categorias: agrupaciones[activePerson] || [],
     draftSaldos: draftSaldos,
+    pendientes: Object.fromEntries((agrupaciones[activePerson] || []).map(c => [c.id, pendienteParaSaldos(entries, activePerson, c.id)])),
     onChange: (catId, val) => setDraftSaldos({
       ...draftSaldos,
       [catId]: val

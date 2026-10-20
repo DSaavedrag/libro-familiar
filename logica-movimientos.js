@@ -152,6 +152,36 @@ export function idAjusteSaldo(personId, categoriaId, month) {
   return `ajuste-${personId}-${categoriaId}-${month}`;
 }
 
+// Un gasto fijo, de tarjeta o de hogar que todavía NO se marcó "pagado" es
+// un compromiso pendiente — se sabe que hay que pagarlo, pero esa plata
+// todavía no salió de la cuenta de verdad. Ej: el sueldo de la niñera se
+// carga solo apenas abrís el mes (gasto fijo automático), pero hasta que no
+// lo pagás y lo marcás, seguís teniendo esa plata en el bolsillo.
+function esPendienteDePago(e) {
+  return Boolean(e.fijoId || e.hogarId || e.tarjetaId || e.esTarjeta) && !e.pagado;
+}
+// Lo que YA está cargado en una categoría, pero sólo contando lo que de
+// verdad ya salió de la cuenta — deja afuera los compromisos pendientes
+// (ver esPendienteDePago). Esto es a propósito distinto de lo que usa el
+// resto de la app (Resumen, Hogar: ver totalsFor en menu.js), que cuenta
+// TODO lo fijo/tarjeta como ya gastado esté pagado o no — ahí es el
+// criterio que Diego prefiere para su propio uso. Acá, en cambio, es
+// específicamente para "Trabajar con saldos": cuando alguien anota "me
+// quedan $300.000", está pensando en la plata que tiene de verdad
+// disponible AHORA, sin restar todavía lo que es un compromiso a futuro —
+// si se restara también lo pendiente, el número que esa persona anotó (que
+// ya es "lo que me queda sin pagar eso todavía") quedaría contado dos
+// veces y el resultado da mal (gastos que terminan en negativo).
+export function gastadoParaSaldos(entries, personId, categoriaId, idAIgnorar) {
+  return (entries || []).filter(e => e.id !== idAIgnorar && e.tipo === "gasto" && e.person === personId && e.categoria === categoriaId && !esPendienteDePago(e)).reduce((s, e) => s + (Number(e.monto) || 0), 0);
+}
+// Lo pendiente de pago de una categoría (ver esPendienteDePago) — se usa
+// sólo para mostrarlo como referencia en "Trabajar con saldos" (algo como
+// "tenés $250.000 pendientes de pago acá"), nunca para restarlo del saldo.
+export function pendienteParaSaldos(entries, personId, categoriaId) {
+  return (entries || []).filter(e => e.tipo === "gasto" && e.person === personId && e.categoria === categoriaId && esPendienteDePago(e)).reduce((s, e) => s + (Number(e.monto) || 0), 0);
+}
+
 // Devuelve:
 //  - undefined si `nuevoSaldo` está vacío o no es un número — no hay nada
 //    que guardar para esta categoría, quien llama no debe tocarla.
@@ -170,8 +200,9 @@ export function armarAjusteSaldo({
   if (nuevoSaldo === "" || nuevoSaldo === null || nuevoSaldo === undefined || isNaN(Number(nuevoSaldo))) return undefined;
   const id = idAjusteSaldo(personId, categoriaId, month);
   // Lo ya cargado "de verdad" en esta categoría, sin contar un ajuste previo
-  // (si no, el ajuste viejo se sumaría a sí mismo al recalcularlo).
-  const gastadoReal = (entries || []).filter(e => e.id !== id && e.tipo === "gasto" && e.person === personId && e.categoria === categoriaId).reduce((s, e) => s + (Number(e.monto) || 0), 0);
+  // (si no, el ajuste viejo se sumaría a sí mismo al recalcularlo) y sin
+  // contar lo pendiente de pago (ver gastadoParaSaldos, arriba).
+  const gastadoReal = gastadoParaSaldos(entries, personId, categoriaId, id);
   const gastoNecesario = (Number(presupuesto) || 0) - Number(nuevoSaldo);
   const plug = Math.round((gastoNecesario - gastadoReal) * 100) / 100;
   // Menos de 50 centavos de diferencia: redondeo, no hace falta inventar un

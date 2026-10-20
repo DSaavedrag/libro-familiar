@@ -981,6 +981,7 @@ export function Shell({
 export function SaldosForm({
   categorias,
   draftSaldos,
+  pendientes,
   onChange,
   onGuardar,
   onCancelar,
@@ -990,28 +991,35 @@ export function SaldosForm({
     className: "lf-saldos-form"
   }, /*#__PURE__*/React.createElement("p", {
     className: "lf-base-note"
-  }, "Para cada categoría, poné el saldo que te queda — la app arma sola el ajuste para que la cuenta cierre."), ingresos === 0 && /*#__PURE__*/React.createElement("p", {
+  }, "Para cada categoría, poné el saldo que te queda — la app arma sola el ajuste para que la cuenta cierre. Lo que todavía esté pendiente de pago no se resta solo (ver abajo de cada categoría que lo tenga)."), ingresos === 0 && /*#__PURE__*/React.createElement("p", {
     className: "lf-empty"
   }, "Todavía no cargaste un ingreso este mes — el presupuesto de cada categoría va a dar $0."), /*#__PURE__*/React.createElement("div", {
     className: "lf-saldos-list"
-  }, (categorias || []).map(c => /*#__PURE__*/React.createElement("div", {
-    className: "lf-saldos-row",
-    key: c.id
-  }, /*#__PURE__*/React.createElement(iconoDe(c.icon), {
-    size: 13,
-    style: {
-      color: c.color
-    }
-  }), /*#__PURE__*/React.createElement("span", {
-    className: "lf-col-cat-label"
-  }, c.label), /*#__PURE__*/React.createElement("input", {
-    className: "lf-input lf-saldos-input",
-    type: "number",
-    inputMode: "decimal",
-    placeholder: "$ 0",
-    value: draftSaldos[c.id] ?? "",
-    onChange: e => onChange(c.id, e.target.value)
-  })))), (categorias || []).length === 0 && /*#__PURE__*/React.createElement("p", {
+  }, (categorias || []).map(c => {
+    const pendiente = (pendientes || {})[c.id] || 0;
+    return /*#__PURE__*/React.createElement("div", {
+      className: "lf-saldos-row-wrap",
+      key: c.id
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "lf-saldos-row"
+    }, /*#__PURE__*/React.createElement(iconoDe(c.icon), {
+      size: 13,
+      style: {
+        color: c.color
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "lf-col-cat-label"
+    }, c.label), /*#__PURE__*/React.createElement("input", {
+      className: "lf-input lf-saldos-input",
+      type: "number",
+      inputMode: "decimal",
+      placeholder: "$ 0",
+      value: draftSaldos[c.id] ?? "",
+      onChange: e => onChange(c.id, e.target.value)
+    })), pendiente > 0.49 && /*#__PURE__*/React.createElement("p", {
+      className: "lf-saldos-pendiente-note"
+    }, "Tenés ", fmt(pendiente), " pendientes de pago acá (no están restados del saldo de arriba — se descuentan recién cuando los marqués como \"Pagado\")."));
+  })), (categorias || []).length === 0 && /*#__PURE__*/React.createElement("p", {
     className: "lf-empty"
   }, "Todavía no tenés categorías propias — armalas desde \"Agrupaciones\" en Mi cuenta."), /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjeta-form-actions"

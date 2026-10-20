@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Pencil, Check } from "lucide-react";
 import { fmt, categoriaDe, iconoDe } from "./constants.js";
-import { CategoryDots, TarjetasHogarSection } from "./components.js";
+import { CategoryDots, TarjetasHogarSection, RowEntry } from "./components.js";
 
 // Nota sobre categorías acá: desde que cada jugador arma sus propias
 // agrupaciones, ya no hay un "CATEGORIAS" único y fijo para clasificar los
@@ -41,6 +41,19 @@ export function HogarSection({
     }
   }, [list, split, editing]);
   const pendientes = list.filter(f => !entries.some(e => e.hogarId === f.id)).length;
+  // Cuánto se gastó este mes en el hogar, por agrupación — suma Diego +
+  // Yani (cada movimiento de hogar ya es la parte que le toca a cada uno,
+  // ver buildCuotaEntry/armarEntriesHogarFaltantes, así que sumando los dos
+  // da el total real gastado entre ambos en esa categoría). Usa las
+  // agrupaciones propias de quien esté mirando esta pantalla, igual que el
+  // resto de Hogar (ver la nota arriba de HogarSection).
+  const [categoriaHogarAbierta, setCategoriaHogarAbierta] = useState(null);
+  const movimientosHogar = (entries || []).filter(e => e.hogarId && e.tipo === "gasto");
+  const totalesPorCategoria = {};
+  (categorias || []).forEach(c => {
+    totalesPorCategoria[c.id] = movimientosHogar.filter(e => e.categoria === c.id).reduce((s, e) => s + (Number(e.monto) || 0), 0);
+  });
+  const totalHogar = movimientosHogar.reduce((s, e) => s + (Number(e.monto) || 0), 0);
   function addRow() {
     setDraft([...draft, {
       id: `hogar-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -86,6 +99,50 @@ export function HogarSection({
   }) : /*#__PURE__*/React.createElement(Pencil, {
     size: 13
   }), editing ? "Guardar" : "Editar")), /*#__PURE__*/React.createElement("div", {
+    className: "lf-hogar-resumen"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lf-col-head"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "lf-label"
+  }, "Saldo del hogar por agrupación"), /*#__PURE__*/React.createElement("span", {
+    className: "lf-num"
+  }, fmt(totalHogar), " en total")), (categorias || []).length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "lf-empty"
+  }, "Todavía no tenés categorías propias — armalas desde \"Agrupaciones\" en Mi cuenta.") : /*#__PURE__*/React.createElement("div", {
+    className: "lf-col-cats"
+  }, (categorias || []).map(c => {
+    const total = totalesPorCategoria[c.id] || 0;
+    const abierta = categoriaHogarAbierta === c.id;
+    const movsCategoria = movimientosHogar.filter(e => e.categoria === c.id);
+    return /*#__PURE__*/React.createElement(React.Fragment, {
+      key: c.id
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "lf-col-cat-row lf-col-cat-row-clickable",
+      onClick: () => setCategoriaHogarAbierta(abierta ? null : c.id)
+    }, /*#__PURE__*/React.createElement(iconoDe(c.icon), {
+      size: 13,
+      style: {
+        color: c.color
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "lf-col-cat-label"
+    }, c.label), /*#__PURE__*/React.createElement("span", {
+      className: "lf-col-cat-num-wrap"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "lf-col-cat-num"
+    }, fmt(total)), /*#__PURE__*/React.createElement("span", {
+      className: "lf-col-cat-arrow"
+    }, abierta ? "▲" : "▼"))), abierta && /*#__PURE__*/React.createElement("div", {
+      className: "lf-col-cat-mov-list"
+    }, movsCategoria.length === 0 ? /*#__PURE__*/React.createElement("p", {
+      className: "lf-empty"
+    }, "Sin movimientos del hogar en ", c.label, " este mes.") : movsCategoria.map(e => /*#__PURE__*/React.createElement(RowEntry, {
+      key: e.id,
+      entry: e,
+      categorias: categorias,
+      readOnly: true
+    }))));
+  }))), /*#__PURE__*/React.createElement("div", {
     className: "lf-hogar-split"
   }, /*#__PURE__*/React.createElement("span", {
     className: "lf-label"

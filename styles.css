@@ -490,13 +490,23 @@
       }
       .lf-saldos-switch:hover { background: rgba(237,230,214,0.08); }
       .lf-saldos-form { display: flex; flex-direction: column; gap: 10px; }
-      .lf-saldos-list { display: flex; flex-direction: column; gap: 8px; }
+      .lf-saldos-list { display: flex; flex-direction: column; gap: 10px; }
+      .lf-saldos-row-wrap { display: flex; flex-direction: column; gap: 3px; }
       .lf-saldos-row {
         display: flex;
         align-items: center;
         gap: 8px;
       }
       .lf-saldos-row .lf-col-cat-label { color: var(--ui-text, var(--paper)); }
+      /* Aviso de "esto está pendiente, no lo restamos todavía" (ver
+         SaldosForm / gastadoParaSaldos): un amarillo/dorado tenue en vez de
+         --neg (rojo) a propósito — no es un error, es sólo información. */
+      .lf-saldos-pendiente-note {
+        margin: 0 0 0 21px;
+        font-size: 10.5px;
+        color: var(--ink-soft);
+        font-style: italic;
+      }
       .lf-saldos-input {
         width: 120px;
         margin-left: auto;
@@ -703,6 +713,19 @@
       }
       .lf-edit-btn.lf-edit-btn-hogar { border-color: var(--ui-accent, #C31015); color: var(--ui-accent, #C31015); background: transparent; }
       .lf-edit-btn.lf-edit-btn-hogar:hover { background: rgba(237,230,214,0.12); }
+      /* "Saldo del hogar por agrupación": reusa las clases de la lista de
+         categorías de Resumen (.lf-col-cat-*), que por defecto están hechas
+         para la tarjeta CLARA de Mi cuenta — acá, igual que .lf-col (la
+         versión oscura de esa misma lista), hace falta aclarar los colores
+         para que se lean bien sobre el fondo oscuro de .lf-hogar. */
+      .lf-hogar-resumen { margin-bottom: 16px; }
+      .lf-hogar .lf-col-cats { border-top-color: rgba(237,230,214,0.2); border-bottom-color: rgba(237,230,214,0.2); }
+      .lf-hogar .lf-col-cat-label { color: rgba(237,230,214,0.75); }
+      .lf-hogar .lf-col-cat-row-clickable:hover { background: rgba(237,230,214,0.08); }
+      .lf-hogar .lf-col-cat-arrow { color: rgba(237,230,214,0.6); }
+      .lf-hogar .lf-entry { background: rgba(237,230,214,0.1); }
+      .lf-hogar .lf-entry-desc { color: var(--ui-text, var(--paper)); }
+      .lf-hogar .lf-entry-cat { color: rgba(237,230,214,0.6); }
       .lf-hogar-split {
         border-top: 1px solid var(--paper-line);
         border-bottom: 1px solid var(--paper-line);
