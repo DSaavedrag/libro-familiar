@@ -1846,6 +1846,7 @@ export function LibroFamiliar() {
   }))), activeTab === "ahorros" && /*#__PURE__*/React.createElement(AhorrosSection, {
     reservas: reservas,
     activePerson: activePerson,
-    onSaveReservas: saveReservas
+    onSaveReservas: saveReservas,
+    cotizacionDolar: cotizacionDolar
   })));
 }

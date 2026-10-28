@@ -555,6 +555,33 @@
         color: var(--ink-soft);
       }
 
+      .lf-moneda-toggle {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .lf-moneda-toggle button {
+        flex: 1 1 auto;
+        border: 1.5px solid var(--paper-line);
+        border-radius: 8px;
+        background: transparent;
+        padding: 8px 10px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--ink-soft);
+      }
+      .lf-moneda-toggle button.on {
+        background: var(--c-ahorros);
+        color: var(--paper);
+        border-color: var(--c-ahorros);
+      }
+      .lf-reserva-card-ars {
+        font-size: 11px;
+        font-weight: 400;
+        opacity: 0.65;
+      }
+
       .lf-input {
         font-family: 'Spicy Rice', cursive;
         border: 1px solid rgba(237,230,214,0.3);

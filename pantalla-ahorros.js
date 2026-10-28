@@ -1,19 +1,68 @@
 // Pantalla "Ahorros": reservas de ahorro (personales o compartidas), sus
 // totales y el detalle/edición de cada una. La llama LibroFamiliar (menu.js).
+//
+// Cada reserva puede ahorrarse en una divisa distinta a pesos (dólares,
+// BTC, o cualquier otra que se le ocurra escribir) — ver MONEDAS más abajo.
+// Los movimientos de una reserva siempre están en SU propia divisa (ej: una
+// reserva en BTC guarda 0.0023, no su equivalente en pesos); para poder
+// sumar reservas de distintas divisas en los totales generales, cada una
+// (salvo la de pesos) guarda también su propia cotización (cuántos pesos
+// vale 1 unidad), cargada a mano — no hay forma de traer en vivo la
+// cotización de cualquier cripto que alguien pueda llegar a escribir acá,
+// así que es siempre manual (la de dólares arranca precargada con la
+// cotización que ya usa el resto de la app, como punto de partida).
 import React, { useState, useEffect } from "react";
-import { PiggyBank, Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { PiggyBank, Plus, Trash2, Pencil, Check, X, RefreshCw } from "lucide-react";
 import { PERSONAS, fmt } from "./constants.js";
+import { fetchCotizacionCripto } from "./storage.js";
+
+// `coingeckoId` es el identificador que usa la API de CoinGecko para traer
+// la cotización en vivo (ver fetchCotizacionCripto en storage.js) — solo
+// las presets de abajo lo tienen; una divisa cargada a mano con "Otra"
+// siempre queda en modo manual, porque no hay forma confiable de adivinar
+// qué id de CoinGecko corresponde a un ticker arbitrario.
+const MONEDAS = [{
+  id: "ARS",
+  label: "$ ARS"
+}, {
+  id: "USD",
+  label: "u$s USD"
+}, {
+  id: "BTC",
+  label: "₿ BTC",
+  coingeckoId: "bitcoin"
+}, {
+  id: "ETH",
+  label: "Ξ ETH",
+  coingeckoId: "ethereum"
+}];
+
+// Formatea un monto en SU propia divisa (no en pesos): para pesos usa el
+// mismo `fmt` de siempre ("$ 1.234,56"); para cualquier otra, el número tal
+// cual (sin forzar 2 decimales — una cripto puede necesitar bastantes más,
+// ej 0.00032154) seguido del código de la divisa.
+function fmtNativo(monto, moneda) {
+  if (!moneda || moneda === "ARS") return fmt(monto);
+  const num = Number(monto) || 0;
+  return `${num} ${moneda}`;
+}
 
 export function AhorrosSection({
   reservas,
   activePerson,
-  onSaveReservas
+  onSaveReservas,
+  cotizacionDolar
 }) {
   const e = React.createElement;
   const [creating, setCreating] = useState(false);
   const [newNombre, setNewNombre] = useState("");
   const [newScope, setNewScope] = useState(activePerson || "diego");
   const [newMeta, setNewMeta] = useState("");
+  const [newMoneda, setNewMoneda] = useState("ARS");
+  const [newMonedaOtra, setNewMonedaOtra] = useState("");
+  const [newCotizacion, setNewCotizacion] = useState("");
+  const [loadingLiveNew, setLoadingLiveNew] = useState(false);
+  const [liveFailedNew, setLiveFailedNew] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [movMonto, setMovMonto] = useState("");
   const [movNota, setMovNota] = useState("");
@@ -27,8 +76,24 @@ export function AhorrosSection({
   const [editNombre, setEditNombre] = useState("");
   const [editScope, setEditScope] = useState("diego");
   const [editMeta, setEditMeta] = useState("");
+  const [editMoneda, setEditMoneda] = useState("ARS");
+  const [editMonedaOtra, setEditMonedaOtra] = useState("");
+  const [editCotizacion, setEditCotizacion] = useState("");
+  const [loadingLiveEdit, setLoadingLiveEdit] = useState(false);
+  const [liveFailedEdit, setLiveFailedEdit] = useState(false);
+  // Total en la divisa PROPIA de la reserva (lo que ya hacía totalDe antes
+  // de poder elegir divisa) — para una reserva en BTC, por ejemplo, da BTC.
   function totalDe(r) {
     return (r.movimientos || []).reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  }
+  // Total convertido a pesos — para una reserva en pesos es lo mismo que
+  // totalDe; para cualquier otra divisa, usa la cotización guardada en la
+  // reserva (0 si todavía no cargó ninguna). Es lo que hace falta para
+  // poder sumar reservas de distintas divisas en un solo total general.
+  function totalArsDe(r) {
+    const total = totalDe(r);
+    if (!r.moneda || r.moneda === "ARS") return total;
+    return total * (Number(r.cotizacion) || 0);
   }
   function colorDe(scope) {
     if (scope === "diego") return "var(--c-diego)";
@@ -40,23 +105,50 @@ export function AhorrosSection({
     return PERSONAS[scope] ? PERSONAS[scope].label : scope;
   }
   const reservasVisibles = reservas.filter(r => r.scope === activePerson || r.scope === "compartida");
-  const totalPersonal = reservas.filter(r => r.scope === activePerson).reduce((s, r) => s + totalDe(r), 0);
-  const totalCompartida = reservas.filter(r => r.scope === "compartida").reduce((s, r) => s + totalDe(r), 0);
+  const totalPersonal = reservas.filter(r => r.scope === activePerson).reduce((s, r) => s + totalArsDe(r), 0);
+  const totalCompartida = reservas.filter(r => r.scope === "compartida").reduce((s, r) => s + totalArsDe(r), 0);
   const totalGeneral = totalPersonal + totalCompartida;
+  async function traerCotizacionLiveNew() {
+    const m = MONEDAS.find(x => x.id === newMoneda);
+    if (!m || !m.coingeckoId) return;
+    setLoadingLiveNew(true);
+    setLiveFailedNew(false);
+    const valor = await fetchCotizacionCripto(m.coingeckoId);
+    setLoadingLiveNew(false);
+    if (valor) setNewCotizacion(String(valor));
+    else setLiveFailedNew(true);
+  }
+  async function traerCotizacionLiveEdit() {
+    const m = MONEDAS.find(x => x.id === editMoneda);
+    if (!m || !m.coingeckoId) return;
+    setLoadingLiveEdit(true);
+    setLiveFailedEdit(false);
+    const valor = await fetchCotizacionCripto(m.coingeckoId);
+    setLoadingLiveEdit(false);
+    if (valor) setEditCotizacion(String(valor));
+    else setLiveFailedEdit(true);
+  }
   function crearReserva() {
     const nombre = newNombre.trim();
     if (!nombre) return;
+    const moneda = newMoneda === "OTRA" ? newMonedaOtra.trim().toUpperCase() : newMoneda;
+    if (!moneda) return;
     const nueva = {
       id: `res-${Date.now()}`,
       nombre,
       scope: newScope,
       meta: newMeta ? Number(newMeta) || 0 : null,
+      moneda,
+      cotizacion: moneda === "ARS" ? null : Number(newCotizacion) || 0,
       movimientos: []
     };
     onSaveReservas([...reservas, nueva]);
     setNewNombre("");
     setNewMeta("");
     setNewScope(activePerson || "diego");
+    setNewMoneda("ARS");
+    setNewMonedaOtra("");
+    setNewCotizacion("");
     setCreating(false);
     setSelectedId(nueva.id);
   }
@@ -93,16 +185,25 @@ export function AhorrosSection({
     setEditNombre(r.nombre);
     setEditScope(r.scope);
     setEditMeta(r.meta ? String(r.meta) : "");
+    const monedaActual = r.moneda || "ARS";
+    const esPreset = MONEDAS.some(m => m.id === monedaActual);
+    setEditMoneda(esPreset ? monedaActual : "OTRA");
+    setEditMonedaOtra(esPreset ? "" : monedaActual);
+    setEditCotizacion(r.cotizacion ? String(r.cotizacion) : "");
     setEditingReserva(true);
   }
   function guardarEdicionReserva(reservaId) {
     const nombre = editNombre.trim();
     if (!nombre) return;
+    const moneda = editMoneda === "OTRA" ? editMonedaOtra.trim().toUpperCase() : editMoneda;
+    if (!moneda) return;
     const next = reservas.map(r => r.id === reservaId ? {
       ...r,
       nombre,
       scope: editScope,
-      meta: editMeta ? Number(editMeta) || 0 : null
+      meta: editMeta ? Number(editMeta) || 0 : null,
+      moneda,
+      cotizacion: moneda === "ARS" ? null : Number(editCotizacion) || 0
     } : r);
     onSaveReservas(next);
     setEditingReserva(false);
@@ -158,9 +259,44 @@ export function AhorrosSection({
     className: editScope === "compartida" ? "on" : "",
     style: editScope === "compartida" ? { background: "var(--c-ahorros)", color: "var(--paper)", borderColor: "var(--c-ahorros)" } : undefined,
     onClick: () => setEditScope("compartida")
-  }, "Compartida")), e("input", {
+  }, "Compartida")), e("div", {
+    className: "lf-moneda-toggle"
+  }, MONEDAS.map(m => e("button", {
+    key: m.id,
+    className: editMoneda === m.id ? "on" : "",
+    onClick: () => {
+      setEditMoneda(m.id);
+      if (m.id === "USD" && !editCotizacion && cotizacionDolar) setEditCotizacion(String(cotizacionDolar));
+    }
+  }, m.label)), e("button", {
+    className: editMoneda === "OTRA" ? "on" : "",
+    onClick: () => setEditMoneda("OTRA")
+  }, "Otra")), editMoneda === "OTRA" ? e("input", {
+    type: "text",
+    placeholder: "Código de la divisa (ej: SOL, DOGE)",
+    value: editMonedaOtra,
+    onChange: ev => setEditMonedaOtra(ev.target.value)
+  }) : null, editMoneda !== "ARS" ? e("div", {
+    className: "lf-cotizacion-edit-row"
+  }, e("input", {
     type: "number",
-    placeholder: "Meta en $ (opcional)",
+    placeholder: `Cotización (1 ${editMoneda === "OTRA" ? editMonedaOtra.trim().toUpperCase() || "?" : editMoneda} = $ X ARS)`,
+    value: editCotizacion,
+    onChange: ev => setEditCotizacion(ev.target.value)
+  }), MONEDAS.find(m => m.id === editMoneda && m.coingeckoId) ? e("button", {
+    type: "button",
+    className: "lf-cotizacion-live-btn",
+    onClick: traerCotizacionLiveEdit,
+    disabled: loadingLiveEdit,
+    title: "Traer cotización en vivo"
+  }, e(RefreshCw, {
+    size: 13,
+    className: loadingLiveEdit ? "lf-spin" : ""
+  }), " Traer en vivo") : null) : null, editMoneda !== "ARS" && liveFailedEdit ? e("p", {
+    className: "lf-empty"
+  }, "No se pudo traer la cotización en vivo. Cargala a mano.") : null, e("input", {
+    type: "number",
+    placeholder: "Meta (opcional)",
     value: editMeta,
     onChange: ev => setEditMeta(ev.target.value)
   }), e("div", {
@@ -188,7 +324,7 @@ export function AhorrosSection({
     size: 13
   }))), editingReserva ? null : e("p", {
     className: "lf-reserva-total"
-  }, fmt(totalDe(seleccionada)), seleccionada.meta ? ` / meta ${fmt(seleccionada.meta)}` : ""), editingReserva ? null : seleccionada.meta ? e("div", {
+  }, fmtNativo(totalDe(seleccionada), seleccionada.moneda), seleccionada.moneda && seleccionada.moneda !== "ARS" ? ` (≈ ${fmt(totalArsDe(seleccionada))})` : "", seleccionada.meta ? ` / meta ${fmtNativo(seleccionada.meta, seleccionada.moneda)}` : ""), editingReserva ? null : seleccionada.meta ? e("div", {
     className: "lf-bar-track",
     title: `${Math.round(Math.min(100, totalDe(seleccionada) / seleccionada.meta * 100))}% de la meta`,
     style: {
@@ -198,7 +334,7 @@ export function AhorrosSection({
     className: "lf-reserva-mov-form"
   }, e("input", {
     type: "number",
-    placeholder: "Monto (+ para sumar, - para sacar)",
+    placeholder: `Monto en ${seleccionada.moneda || "ARS"} (+ para sumar, - para sacar)`,
     value: movMonto,
     onChange: ev => setMovMonto(ev.target.value)
   }), e("input", {
@@ -220,7 +356,7 @@ export function AhorrosSection({
     key: m.id
   }, e("span", {
     className: "lf-num " + (m.monto >= 0 ? "lf-pos" : "lf-neg")
-  }, fmt(m.monto)), e("span", {
+  }, fmtNativo(m.monto, seleccionada.moneda)), e("span", {
     className: "lf-reserva-mov-nota"
   }, m.nota || "—"), confirmDeleteMovId === m.id ? e(React.Fragment, null, e("button", {
     className: "lf-entry-del-confirm-yes",
@@ -286,7 +422,9 @@ export function AhorrosSection({
       }
     }, labelScope(r.scope))), e("span", {
       className: "lf-num lf-pos"
-    }, fmt(total)), r.meta ? e("div", {
+    }, fmtNativo(total, r.moneda), r.moneda && r.moneda !== "ARS" ? e("span", {
+      className: "lf-reserva-card-ars"
+    }, ` ≈ ${fmt(totalArsDe(r))}`) : null), r.meta ? e("div", {
       className: "lf-col-mini-track",
       title: `${Math.round(total / r.meta * 100)}% de la meta`,
       style: {
@@ -294,7 +432,7 @@ export function AhorrosSection({
       }
     }) : null, r.meta ? e("span", {
       className: "lf-reserva-meta-label"
-    }, "meta ", fmt(r.meta)) : null);
+    }, "meta ", fmtNativo(r.meta, r.moneda)) : null);
   })), reservasVisibles.length === 0 && !creating ? e("p", {
     className: "lf-empty"
   }, "Todavía no creaste ninguna reserva de ahorro.") : null, creating ? e("div", {
@@ -318,9 +456,44 @@ export function AhorrosSection({
     className: newScope === "compartida" ? "on" : "",
     style: newScope === "compartida" ? { background: "var(--c-ahorros)", color: "var(--paper)", borderColor: "var(--c-ahorros)" } : undefined,
     onClick: () => setNewScope("compartida")
-  }, "Compartida")), e("input", {
+  }, "Compartida")), e("div", {
+    className: "lf-moneda-toggle"
+  }, MONEDAS.map(m => e("button", {
+    key: m.id,
+    className: newMoneda === m.id ? "on" : "",
+    onClick: () => {
+      setNewMoneda(m.id);
+      if (m.id === "USD" && !newCotizacion && cotizacionDolar) setNewCotizacion(String(cotizacionDolar));
+    }
+  }, m.label)), e("button", {
+    className: newMoneda === "OTRA" ? "on" : "",
+    onClick: () => setNewMoneda("OTRA")
+  }, "Otra")), newMoneda === "OTRA" ? e("input", {
+    type: "text",
+    placeholder: "Código de la divisa (ej: SOL, DOGE)",
+    value: newMonedaOtra,
+    onChange: ev => setNewMonedaOtra(ev.target.value)
+  }) : null, newMoneda !== "ARS" ? e("div", {
+    className: "lf-cotizacion-edit-row"
+  }, e("input", {
     type: "number",
-    placeholder: "Meta en $ (opcional)",
+    placeholder: `Cotización (1 ${newMoneda === "OTRA" ? newMonedaOtra.trim().toUpperCase() || "?" : newMoneda} = $ X ARS)`,
+    value: newCotizacion,
+    onChange: ev => setNewCotizacion(ev.target.value)
+  }), MONEDAS.find(m => m.id === newMoneda && m.coingeckoId) ? e("button", {
+    type: "button",
+    className: "lf-cotizacion-live-btn",
+    onClick: traerCotizacionLiveNew,
+    disabled: loadingLiveNew,
+    title: "Traer cotización en vivo"
+  }, e(RefreshCw, {
+    size: 13,
+    className: loadingLiveNew ? "lf-spin" : ""
+  }), " Traer en vivo") : null) : null, newMoneda !== "ARS" && liveFailedNew ? e("p", {
+    className: "lf-empty"
+  }, "No se pudo traer la cotización en vivo. Cargala a mano.") : null, e("input", {
+    type: "number",
+    placeholder: "Meta (opcional)",
     value: newMeta,
     onChange: ev => setNewMeta(ev.target.value)
   }), e("div", {

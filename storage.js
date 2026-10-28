@@ -45,6 +45,26 @@ export async function fetchCotizacionLive() {
   }
 }
 
+// Intenta traer la cotización en pesos de una cripto (BTC, ETH, ...) desde
+// CoinGecko (API pública, sin key, soporta "ars" como moneda de destino
+// directamente). `coingeckoId` es el identificador que usa esa API, no el
+// ticker (ej. "bitcoin", no "BTC") — ver MONEDAS en pantalla-ahorros.js para
+// el mapeo. Si el entorno no permite el pedido de red, o la cripto no tiene
+// un id conocido (cualquier "Otra" cargada a mano), devuelve null y la app
+// cae al valor manual, igual que con el dólar.
+export async function fetchCotizacionCripto(coingeckoId) {
+  if (!coingeckoId) return null;
+  try {
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coingeckoId}&vs_currencies=ars`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const valor = data && data[coingeckoId] && data[coingeckoId].ars;
+    return typeof valor === "number" ? valor : null;
+  } catch {
+    return null;
+  }
+}
+
 // --- Movimientos: array <-> mapa por id -------------------------------------
 // Los movimientos (entries) se guardan en Firebase como un objeto {id: entry},
 // no como un array — así las reglas de seguridad pueden proteger cada
