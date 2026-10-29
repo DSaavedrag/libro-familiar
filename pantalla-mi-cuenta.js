@@ -498,6 +498,7 @@ export function PersonColumn({
     onBorrar: onBorrarTarjeta,
     onEditar: onEditarTarjeta,
     onRevisar: onRevisarTarjeta,
+    cotizacionDolar: cotizacionDolar,
     readOnly: readOnly
   }))), /*#__PURE__*/React.createElement("div", {
     className: "lf-swipe-page"

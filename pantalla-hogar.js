@@ -277,6 +277,7 @@ export function HogarSection({
     onBorrar: onBorrarTarjetaHogar,
     onEditar: onEditarTarjetaHogar,
     onRevisar: onRevisarTarjetaHogar,
-    onReparar: onRepararTarjetaHogar
+    onReparar: onRepararTarjetaHogar,
+    cotizacionDolar: cotizacionDolar
   }));
 }

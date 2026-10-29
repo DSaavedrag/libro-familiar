@@ -216,7 +216,8 @@ export function TarjetasHogarSection({
   onBorrar,
   onEditar,
   onRevisar,
-  onReparar
+  onReparar,
+  cotizacionDolar
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -224,7 +225,8 @@ export function TarjetasHogarSection({
     descripcion: "",
     monto: "",
     categoria: (categorias && categorias[0] && categorias[0].id) || null,
-    cuotas: 1
+    cuotas: 1,
+    moneda: "ARS"
   });
   const [busy, setBusy] = useState(false);
   const [revisando, setRevisando] = useState(null);
@@ -246,9 +248,10 @@ export function TarjetasHogarSection({
     setEditingId(p.id);
     setForm({
       descripcion: p.descripcion,
-      monto: p.montoTotal,
+      monto: p.moneda === "USD" ? p.montoTotalUSD : p.montoTotal,
       categoria: p.categoria,
-      cuotas: p.cuotasTotal
+      cuotas: p.cuotasTotal,
+      moneda: p.moneda || "ARS"
     });
     setShowForm(true);
   }
@@ -259,7 +262,8 @@ export function TarjetasHogarSection({
       descripcion: "",
       monto: "",
       categoria: (categorias && categorias[0] && categorias[0].id) || null,
-      cuotas: 1
+      cuotas: 1,
+      moneda: "ARS"
     });
   }
   async function submit() {
@@ -325,7 +329,7 @@ export function TarjetasHogarSection({
   }, /*#__PURE__*/React.createElement("input", {
     className: "lf-input lf-tarjeta-monto",
     type: "number",
-    placeholder: "$ total",
+    placeholder: form.moneda === "USD" ? "u$s total" : "$ total",
     value: form.monto,
     onChange: e => setForm({
       ...form,
@@ -345,7 +349,23 @@ export function TarjetasHogarSection({
       ...form,
       cuotas: e.target.value
     })
-  }))), /*#__PURE__*/React.createElement(CategoryDots, {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "lf-moneda-toggle"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: (form.moneda || "ARS") === "ARS" ? "on" : "",
+    onClick: () => setForm({
+      ...form,
+      moneda: "ARS"
+    })
+  }, "$"), /*#__PURE__*/React.createElement("button", {
+    className: form.moneda === "USD" ? "on" : "",
+    onClick: () => setForm({
+      ...form,
+      moneda: "USD"
+    })
+  }, "u$s"))), form.moneda === "USD" && Number(form.monto) > 0 && /*#__PURE__*/React.createElement("p", {
+    className: "lf-fijo-usd-preview"
+  }, "≈ ", fmt((Number(form.monto) || 0) * (Number(cotizacionDolar) || 0)), " a la cotización actual (", fmt(cotizacionDolar), "/u$s)"), /*#__PURE__*/React.createElement(CategoryDots, {
     value: form.categoria,
     categorias: categorias,
     onChange: cat => setForm({
@@ -354,7 +374,7 @@ export function TarjetasHogarSection({
     })
   }), Number(form.monto) > 0 && /*#__PURE__*/React.createElement("p", {
     className: "lf-tarjeta-preview"
-  }, "Se divide ", split.diego, "% Diego (", fmt(Number(form.monto) / Number(form.cuotas || 1) * (split.diego / 100)), "/cuota) · ", split.yani, "% Yani (", fmt(Number(form.monto) / Number(form.cuotas || 1) * (split.yani / 100)), "/cuota)", Number(form.cuotas) > 1 && ` — pega en ${monthLabel(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month)} → ${monthLabel(shiftMonth(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month, Number(form.cuotas) - 1))}`), /*#__PURE__*/React.createElement("div", {
+  }, "Se divide ", split.diego, "% Diego (", fmt((form.moneda === "USD" ? Number(form.monto) * (Number(cotizacionDolar) || 0) : Number(form.monto)) / Number(form.cuotas || 1) * (split.diego / 100)), "/cuota) · ", split.yani, "% Yani (", fmt((form.moneda === "USD" ? Number(form.monto) * (Number(cotizacionDolar) || 0) : Number(form.monto)) / Number(form.cuotas || 1) * (split.yani / 100)), "/cuota)", Number(form.cuotas) > 1 && ` — pega en ${monthLabel(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month)} → ${monthLabel(shiftMonth(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month, Number(form.cuotas) - 1))}`), /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjeta-form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "lf-add-btn lf-tarjeta-submit",
@@ -375,6 +395,8 @@ export function TarjetasHogarSection({
     const tieneFallidos = (p.mesesFallidos || []).length > 0;
     const parteDiego = Math.round(p.montoCuota * (Number(split.diego) || 0) / 100 * 100) / 100;
     const parteYani = Math.round(p.montoCuota * (Number(split.yani) || 0) / 100 * 100) / 100;
+    const parteDiegoUSD = p.moneda === "USD" && p.montoCuotaUSD ? Math.round(p.montoCuotaUSD * (Number(split.diego) || 0) / 100 * 100) / 100 : null;
+    const parteYaniUSD = p.moneda === "USD" && p.montoCuotaUSD ? Math.round(p.montoCuotaUSD * (Number(split.yani) || 0) / 100 * 100) / 100 : null;
     return /*#__PURE__*/React.createElement("div", {
       className: "lf-tarjeta-item-wrap",
       key: p.id
@@ -402,11 +424,11 @@ export function TarjetasHogarSection({
       style: {
         color: "var(--c-diego)"
       }
-    }, "Diego ", fmt(parteDiego)), /*#__PURE__*/React.createElement("span", {
+    }, "Diego ", parteDiegoUSD != null ? `u$s ${parteDiegoUSD} (≈ ${fmt(parteDiego)})` : fmt(parteDiego)), /*#__PURE__*/React.createElement("span", {
       style: {
         color: "var(--c-yani)"
       }
-    }, "Yani ", fmt(parteYani)))), /*#__PURE__*/React.createElement("button", {
+    }, "Yani ", parteYaniUSD != null ? `u$s ${parteYaniUSD} (≈ ${fmt(parteYani)})` : fmt(parteYani)))), /*#__PURE__*/React.createElement("button", {
       className: "lf-tarjeta-icon-btn",
       onClick: () => revisar(p),
       disabled: revisando === p.id,
@@ -460,6 +482,7 @@ export function TarjetasSection({
   onBorrar,
   onEditar,
   onRevisar,
+  cotizacionDolar,
   readOnly
 }) {
   const [showForm, setShowForm] = useState(false);
@@ -468,7 +491,8 @@ export function TarjetasSection({
     descripcion: "",
     monto: "",
     categoria: (categorias && categorias[0] && categorias[0].id) || null,
-    cuotas: 1
+    cuotas: 1,
+    moneda: "ARS"
   });
   const [busy, setBusy] = useState(false);
   const [revisando, setRevisando] = useState(null);
@@ -483,9 +507,10 @@ export function TarjetasSection({
     setEditingId(p.id);
     setForm({
       descripcion: p.descripcion,
-      monto: p.montoTotal,
+      monto: p.moneda === "USD" ? p.montoTotalUSD : p.montoTotal,
       categoria: p.categoria,
-      cuotas: p.cuotasTotal
+      cuotas: p.cuotasTotal,
+      moneda: p.moneda || "ARS"
     });
     setShowForm(true);
   }
@@ -496,7 +521,8 @@ export function TarjetasSection({
       descripcion: "",
       monto: "",
       categoria: (categorias && categorias[0] && categorias[0].id) || null,
-      cuotas: 1
+      cuotas: 1,
+      moneda: "ARS"
     });
   }
   async function submit() {
@@ -552,7 +578,7 @@ export function TarjetasSection({
   }, /*#__PURE__*/React.createElement("input", {
     className: "lf-input lf-tarjeta-monto",
     type: "number",
-    placeholder: "$ total",
+    placeholder: form.moneda === "USD" ? "u$s total" : "$ total",
     value: form.monto,
     onChange: e => setForm({
       ...form,
@@ -572,7 +598,23 @@ export function TarjetasSection({
       ...form,
       cuotas: e.target.value
     })
-  }))), /*#__PURE__*/React.createElement(CategoryDots, {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "lf-moneda-toggle"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: (form.moneda || "ARS") === "ARS" ? "on" : "",
+    onClick: () => setForm({
+      ...form,
+      moneda: "ARS"
+    })
+  }, "$"), /*#__PURE__*/React.createElement("button", {
+    className: form.moneda === "USD" ? "on" : "",
+    onClick: () => setForm({
+      ...form,
+      moneda: "USD"
+    })
+  }, "u$s"))), form.moneda === "USD" && Number(form.monto) > 0 && /*#__PURE__*/React.createElement("p", {
+    className: "lf-fijo-usd-preview"
+  }, "≈ ", fmt((Number(form.monto) || 0) * (Number(cotizacionDolar) || 0)), " a la cotización actual (", fmt(cotizacionDolar), "/u$s)"), /*#__PURE__*/React.createElement(CategoryDots, {
     value: form.categoria,
     categorias: categorias,
     onChange: cat => setForm({
@@ -581,7 +623,7 @@ export function TarjetasSection({
     })
   }), Number(form.cuotas) > 1 && Number(form.monto) > 0 && /*#__PURE__*/React.createElement("p", {
     className: "lf-tarjeta-preview"
-  }, form.cuotas, " cuotas de ", fmt(Number(form.monto) / Number(form.cuotas)), " — pega en", " ", monthLabel(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month), " → ", monthLabel(shiftMonth(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month, Number(form.cuotas) - 1))), /*#__PURE__*/React.createElement("div", {
+  }, form.cuotas, " cuotas de ", fmt((form.moneda === "USD" ? Number(form.monto) * (Number(cotizacionDolar) || 0) : Number(form.monto)) / Number(form.cuotas)), " — pega en", " ", monthLabel(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month), " → ", monthLabel(shiftMonth(editingId ? list.find(p => p.id === editingId)?.mesInicio || month : month, Number(form.cuotas) - 1))), /*#__PURE__*/React.createElement("div", {
     className: "lf-tarjeta-form-actions"
   }, /*#__PURE__*/React.createElement("button", {
     className: "lf-add-btn lf-tarjeta-submit",
@@ -621,7 +663,7 @@ export function TarjetasSection({
       style: {
         color: cat.color
       }
-    }, cat.label), " · ", p.cuotasTotal > 1 ? `Cuota ${idx + 1}/${p.cuotasTotal} · ${fmt(p.montoCuota)}` : fmt(p.montoCuota))), !readOnly && /*#__PURE__*/React.createElement("button", {
+    }, cat.label), " · ", p.cuotasTotal > 1 ? `Cuota ${idx + 1}/${p.cuotasTotal} · ${p.moneda === "USD" ? `u$s ${p.montoCuotaUSD} (≈ ${fmt(p.montoCuota)})` : fmt(p.montoCuota)}` : p.moneda === "USD" ? `u$s ${p.montoCuotaUSD} (≈ ${fmt(p.montoCuota)})` : fmt(p.montoCuota))), !readOnly && /*#__PURE__*/React.createElement("button", {
       className: "lf-tarjeta-icon-btn",
       onClick: () => revisar(p),
       disabled: revisando === p.id,

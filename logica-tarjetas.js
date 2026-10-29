@@ -21,6 +21,14 @@ import { shiftMonth, monthDiff } from "./constants.js";
 import { storageUpdateRetry, mapaAArray } from "./storage.js";
 
 // Arma UNA cuota (un movimiento) de una compra en cuotas.
+// `montoCuotaUSD`/`cotizacionUsada`: solo se usan para un consumo único
+// cargado en dólares (ver cargarConsumoTarjeta en menu.js) — quedan
+// guardados en cada cuota únicamente para mostrarlos (mismo patrón que
+// montoUSD/cotizacionUsada en los gastos fijos, ver logica-fijos.js), el
+// `monto` en pesos de la cuota ya viene convertido desde afuera. A
+// diferencia de los fijos, una compra en cuotas es un monto fijo de una
+// sola vez: no hay resincronización contra la cotización del día después
+// de cargada, la conversión queda congelada desde el momento de la compra.
 export function buildCuotaEntry({
   purchaseId,
   personId,
@@ -29,7 +37,9 @@ export function buildCuotaEntry({
   montoCuota,
   cuotasNum,
   idx,
-  hogar
+  hogar,
+  montoCuotaUSD,
+  cotizacionUsada
 }) {
   const sufijoIdHogar = hogar ? `-${personId}` : "";
   const sufijoTextoHogar = hogar ? ", hogar" : "";
@@ -47,6 +57,8 @@ export function buildCuotaEntry({
     } : {}),
     cuotaIndex: idx + 1,
     cuotasTotal: cuotasNum,
+    montoUSD: montoCuotaUSD,
+    cotizacionUsada: montoCuotaUSD ? cotizacionUsada : undefined,
     ts: Date.now() - idx
   };
 }
@@ -68,7 +80,10 @@ export async function escribirCuotas({
   startMonth,
   writeEntriesForMonth,
   hogar,
-  splitHogar
+  splitHogar,
+  montoCuotaUSD,
+  montoCuotaTotalUSD,
+  cotizacionUsada
 }) {
   const fallidos = [];
   for (let i = 0; i < cuotasNum; i++) {
@@ -81,7 +96,9 @@ export async function escribirCuotas({
       montoCuota: Math.round(montoCuotaTotal * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100,
       cuotasNum,
       idx: i,
-      hogar: true
+      hogar: true,
+      montoCuotaUSD: montoCuotaTotalUSD ? Math.round(montoCuotaTotalUSD * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100 : undefined,
+      cotizacionUsada
     })) : [buildCuotaEntry({
       purchaseId,
       personId,
@@ -90,7 +107,9 @@ export async function escribirCuotas({
       montoCuota,
       cuotasNum,
       idx: i,
-      hogar: false
+      hogar: false,
+      montoCuotaUSD,
+      cotizacionUsada
     })];
     const ok = await writeEntriesForMonth(mKey, entriesParaEsteMes);
     if (!ok) fallidos.push(mKey);
@@ -213,7 +232,9 @@ export async function reintentarCuotasFaltantes({
       montoCuota: Math.round(purchase.montoCuota * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100,
       cuotasNum: purchase.cuotasTotal,
       idx,
-      hogar: true
+      hogar: true,
+      montoCuotaUSD: purchase.montoCuotaUSD ? Math.round(purchase.montoCuotaUSD * (Number(splitHogar[pid]) || 0) / 100 * 100) / 100 : undefined,
+      cotizacionUsada: purchase.cotizacionUsada
     })) : [buildCuotaEntry({
       purchaseId: purchase.id,
       personId,
@@ -222,7 +243,9 @@ export async function reintentarCuotasFaltantes({
       montoCuota: purchase.montoCuota,
       cuotasNum: purchase.cuotasTotal,
       idx,
-      hogar: false
+      hogar: false,
+      montoCuotaUSD: purchase.montoCuotaUSD,
+      cotizacionUsada: purchase.cotizacionUsada
     })];
     const ok = await writeEntriesForMonth(mKey, entriesParaEsteMes);
     if (!ok) nuevosFallidos.push(mKey);

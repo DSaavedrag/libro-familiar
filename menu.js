@@ -306,7 +306,8 @@ export function LibroFamiliar() {
     esRendimiento: false,
     tarjetaModo: "agrupable",
     etiquetaId: null,
-    tarjetaCuotas: 1
+    tarjetaCuotas: 1,
+    tarjetaMoneda: "ARS"
   });
   // "Trabajar con saldos" (ver armarAjusteSaldo en logica-movimientos.js):
   // en vez de mostrar el formulario de carga de siempre (Gasto/Ingreso),
@@ -879,11 +880,20 @@ export function LibroFamiliar() {
     descripcion,
     monto,
     categoria,
-    cuotas
+    cuotas,
+    moneda
   }) {
     const cuotasNum = Math.max(1, Math.round(Number(cuotas)) || 1);
-    const montoTotal = Number(monto) || 0;
+    // Si el consumo se cargó en dólares, `monto` viene en u$s — se convierte
+    // UNA sola vez, a la cotización de hoy, y de ahí en más la compra queda
+    // en pesos (a diferencia de un gasto fijo recurrente, una compra en
+    // cuotas es un monto de una sola vez: no tiene sentido seguir
+    // resincronizándola contra la cotización del día después de cargada).
+    const esUSD = moneda === "USD";
+    const montoTotalUSD = esUSD ? Number(monto) || 0 : 0;
+    const montoTotal = esUSD ? Math.round(montoTotalUSD * (Number(cotizacionDolar) || 0) * 100) / 100 : Number(monto) || 0;
     const montoCuota = Math.round(montoTotal / cuotasNum * 100) / 100;
+    const montoCuotaUSD = esUSD ? Math.round(montoTotalUSD / cuotasNum * 100) / 100 : undefined;
     const purchaseId = `tarjeta-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const mesInicio = tarjetaYaCerradaEsteMes(personId) ? shiftMonth(month, 1) : month;
     const mesesFallidos = await escribirCuotas({
@@ -895,7 +905,9 @@ export function LibroFamiliar() {
       montoCuota,
       startMonth: mesInicio,
       writeEntriesForMonth,
-      hogar: false
+      hogar: false,
+      montoCuotaUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     });
     const registro = {
       id: purchaseId,
@@ -905,7 +917,11 @@ export function LibroFamiliar() {
       montoCuota,
       cuotasTotal: cuotasNum,
       mesInicio,
-      mesesFallidos
+      mesesFallidos,
+      moneda: esUSD ? "USD" : "ARS",
+      montoTotalUSD: esUSD ? montoTotalUSD : undefined,
+      montoCuotaUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     };
     await saveTarjetasFor(personId, [registro, ...(tarjetas[personId] || [])]);
     if (mesesFallidos.length > 0) {
@@ -920,8 +936,11 @@ export function LibroFamiliar() {
       persistEntries
     });
     const cuotasNum = Math.max(1, Math.round(Number(nuevosValores.cuotas)) || 1);
-    const montoTotal = Number(nuevosValores.monto) || 0;
+    const esUSD = nuevosValores.moneda === "USD";
+    const montoTotalUSD = esUSD ? Number(nuevosValores.monto) || 0 : 0;
+    const montoTotal = esUSD ? Math.round(montoTotalUSD * (Number(cotizacionDolar) || 0) * 100) / 100 : Number(nuevosValores.monto) || 0;
     const montoCuota = Math.round(montoTotal / cuotasNum * 100) / 100;
+    const montoCuotaUSD = esUSD ? Math.round(montoTotalUSD / cuotasNum * 100) / 100 : undefined;
     const mesesFallidos = await escribirCuotas({
       purchaseId: purchase.id,
       personId,
@@ -931,7 +950,9 @@ export function LibroFamiliar() {
       montoCuota,
       startMonth: purchase.mesInicio,
       writeEntriesForMonth,
-      hogar: false
+      hogar: false,
+      montoCuotaUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     });
     const registro = {
       id: purchase.id,
@@ -941,7 +962,11 @@ export function LibroFamiliar() {
       montoCuota,
       cuotasTotal: cuotasNum,
       mesInicio: purchase.mesInicio,
-      mesesFallidos
+      mesesFallidos,
+      moneda: esUSD ? "USD" : "ARS",
+      montoTotalUSD: esUSD ? montoTotalUSD : undefined,
+      montoCuotaUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     };
     await saveTarjetasFor(personId, (tarjetas[personId] || []).map(p => p.id === purchase.id ? registro : p));
     if (mesesFallidos.length > 0) {
@@ -1040,11 +1065,18 @@ export function LibroFamiliar() {
     descripcion,
     monto,
     categoria,
-    cuotas
+    cuotas,
+    moneda
   }) {
     const cuotasNum = Math.max(1, Math.round(Number(cuotas)) || 1);
-    const montoTotal = Number(monto) || 0;
+    // Misma conversión única (no recurrente) que en el consumo personal — ver
+    // cargarConsumoTarjeta: si es en dólares, se convierte una sola vez a la
+    // cotización de hoy y de ahí en más la compra queda fija en pesos.
+    const esUSD = moneda === "USD";
+    const montoTotalUSD = esUSD ? Number(monto) || 0 : 0;
+    const montoTotal = esUSD ? Math.round(montoTotalUSD * (Number(cotizacionDolar) || 0) * 100) / 100 : Number(monto) || 0;
     const montoCuotaTotal = Math.round(montoTotal / cuotasNum * 100) / 100;
+    const montoCuotaTotalUSD = esUSD ? Math.round(montoTotalUSD / cuotasNum * 100) / 100 : undefined;
     const purchaseId = `tarjetahogar-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     // Misma idea que en el consumo personal (ver tarjetaYaCerradaEsteMes): si
     // quien está cargando ya pagó su tarjeta este mes, un consumo de hogar
@@ -1059,7 +1091,9 @@ export function LibroFamiliar() {
       startMonth: mesInicio,
       writeEntriesForMonth,
       hogar: true,
-      splitHogar
+      splitHogar,
+      montoCuotaTotalUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     });
     const registro = {
       id: purchaseId,
@@ -1069,7 +1103,11 @@ export function LibroFamiliar() {
       montoCuota: montoCuotaTotal,
       cuotasTotal: cuotasNum,
       mesInicio,
-      mesesFallidos
+      mesesFallidos,
+      moneda: esUSD ? "USD" : "ARS",
+      montoTotalUSD: esUSD ? montoTotalUSD : undefined,
+      montoCuotaUSD: montoCuotaTotalUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     };
     await saveTarjetasHogar([registro, ...tarjetasHogar]);
     if (mesesFallidos.length > 0) {
@@ -1084,8 +1122,11 @@ export function LibroFamiliar() {
       persistEntries
     }); // filtra por tarjetaId, saca las dos entradas (Diego y Yani) de cada mes
     const cuotasNum = Math.max(1, Math.round(Number(nuevosValores.cuotas)) || 1);
-    const montoTotal = Number(nuevosValores.monto) || 0;
+    const esUSD = nuevosValores.moneda === "USD";
+    const montoTotalUSD = esUSD ? Number(nuevosValores.monto) || 0 : 0;
+    const montoTotal = esUSD ? Math.round(montoTotalUSD * (Number(cotizacionDolar) || 0) * 100) / 100 : Number(nuevosValores.monto) || 0;
     const montoCuotaTotal = Math.round(montoTotal / cuotasNum * 100) / 100;
+    const montoCuotaTotalUSD = esUSD ? Math.round(montoTotalUSD / cuotasNum * 100) / 100 : undefined;
     const mesesFallidos = await escribirCuotas({
       purchaseId: purchase.id,
       categoria: nuevosValores.categoria,
@@ -1095,7 +1136,9 @@ export function LibroFamiliar() {
       startMonth: purchase.mesInicio,
       writeEntriesForMonth,
       hogar: true,
-      splitHogar
+      splitHogar,
+      montoCuotaTotalUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     });
     const registro = {
       id: purchase.id,
@@ -1105,7 +1148,11 @@ export function LibroFamiliar() {
       montoCuota: montoCuotaTotal,
       cuotasTotal: cuotasNum,
       mesInicio: purchase.mesInicio,
-      mesesFallidos
+      mesesFallidos,
+      moneda: esUSD ? "USD" : "ARS",
+      montoTotalUSD: esUSD ? montoTotalUSD : undefined,
+      montoCuotaUSD: montoCuotaTotalUSD,
+      cotizacionUsada: esUSD ? Number(cotizacionDolar) || 0 : undefined
     };
     await saveTarjetasHogar(tarjetasHogar.map(p => p.id === purchase.id ? registro : p));
   }
@@ -1179,13 +1226,15 @@ export function LibroFamiliar() {
         descripcion: descripcionUnico,
         monto: form.monto,
         categoria,
-        cuotas: form.tarjetaCuotas
+        cuotas: form.tarjetaCuotas,
+        moneda: form.tarjetaMoneda
       });
       setForm({
         ...form,
         monto: "",
         descripcion: "",
-        tarjetaCuotas: 1
+        tarjetaCuotas: 1,
+        tarjetaMoneda: "ARS"
       });
       return;
     }
@@ -1553,7 +1602,7 @@ export function LibroFamiliar() {
     className: "lf-input lf-input-monto",
     type: "number",
     inputMode: "decimal",
-    placeholder: "$ 0",
+    placeholder: form.esTarjeta && form.tarjetaModo === "unico" && form.tarjetaMoneda === "USD" ? "u$s 0" : "$ 0",
     value: form.monto,
     onChange: e => setForm({
       ...form,
@@ -1585,7 +1634,8 @@ export function LibroFamiliar() {
       tarjetaModo: "agrupable",
       etiquetaId: null,
       descripcion: "",
-      tarjetaCuotas: 1
+      tarjetaCuotas: 1,
+      tarjetaMoneda: "ARS"
     })
   }), /*#__PURE__*/React.createElement(CreditCard, {
     size: 13
@@ -1661,9 +1711,25 @@ export function LibroFamiliar() {
       ...form,
       tarjetaCuotas: e.target.value
     })
-  }))), form.tipo === "gasto" && form.esTarjeta && form.tarjetaModo === "unico" && Number(form.tarjetaCuotas) > 1 && Number(form.monto) > 0 && /*#__PURE__*/React.createElement("p", {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "lf-moneda-toggle"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: (form.tarjetaMoneda || "ARS") === "ARS" ? "on" : "",
+    onClick: () => setForm({
+      ...form,
+      tarjetaMoneda: "ARS"
+    })
+  }, "$"), /*#__PURE__*/React.createElement("button", {
+    className: form.tarjetaMoneda === "USD" ? "on" : "",
+    onClick: () => setForm({
+      ...form,
+      tarjetaMoneda: "USD"
+    })
+  }, "u$s"))), form.tipo === "gasto" && form.esTarjeta && form.tarjetaModo === "unico" && form.tarjetaMoneda === "USD" && Number(form.monto) > 0 && /*#__PURE__*/React.createElement("p", {
+    className: "lf-fijo-usd-preview"
+  }, "≈ ", fmt((Number(form.monto) || 0) * (Number(cotizacionDolar) || 0)), " a la cotización actual (", fmt(cotizacionDolar), "/u$s)"), form.tipo === "gasto" && form.esTarjeta && form.tarjetaModo === "unico" && Number(form.tarjetaCuotas) > 1 && Number(form.monto) > 0 && /*#__PURE__*/React.createElement("p", {
     className: "lf-tarjeta-preview"
-  }, form.tarjetaCuotas, " cuotas de ", fmt(Number(form.monto) / Number(form.tarjetaCuotas)), " — pega en", " ", monthLabel(month), " → ", monthLabel(shiftMonth(month, Number(form.tarjetaCuotas) - 1))), /*#__PURE__*/React.createElement("div", {
+  }, form.tarjetaCuotas, " cuotas de ", fmt((form.tarjetaMoneda === "USD" ? Number(form.monto) * (Number(cotizacionDolar) || 0) : Number(form.monto)) / Number(form.tarjetaCuotas)), " — pega en", " ", monthLabel(month), " → ", monthLabel(shiftMonth(month, Number(form.tarjetaCuotas) - 1))), /*#__PURE__*/React.createElement("div", {
     className: "lf-form-row"
   }, !form.esTarjeta && /*#__PURE__*/React.createElement("input", {
     className: "lf-input",
