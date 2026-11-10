@@ -118,6 +118,52 @@ export function sugerirMontoTarjetaPorEtiqueta(entries, personId, etiquetaId) {
   });
   return mejorMonto;
 }
+// `entries:{mes}` se guarda en Firebase como un objeto {id: movimiento} —
+// cada clave del objeto DEBE ser el id del movimiento que contiene. Antes
+// de que esto fuera así, se guardaba como array (claves "0", "1", "2"...);
+// en algunos meses viejos quedaron movimientos sueltos bajo esa clave
+// vieja, y si ESE MISMO movimiento se volvió a escribir más tarde bajo su
+// clave correcta (por ejemplo, al tocar "pagado", que siempre escribe por
+// id), terminaron existiendo DOS copias del mismo movimiento en Firebase:
+// la vieja, huérfana bajo el índice, y la nueva, bajo su id. Como el resto
+// de la app (persistEntries, removeInstallments, etc.) siempre borra o
+// actualiza usando el id del movimiento como clave, nunca toca la copia
+// vieja — por eso un movimiento así puede "revivir solo" después de
+// borrarlo: lo que se borra es la copia nueva, pero la vieja seguía ahí
+// todo el tiempo y vuelve a aparecer en la próxima lectura del mes.
+//
+// Esta función detecta esas claves fantasma (clave del objeto ≠ id del
+// movimiento que contiene) y arma: la lista ya sin duplicados (`limpio`,
+// para usar de entrada mientras se termina de limpiar) y un `patch` para
+// borrar las claves viejas de Firebase. Si para algún movimiento la única
+// copia que existe es la de la clave vieja (nunca se reescribió bajo su
+// id), no se pierde: se reescribe bajo su id correcto antes de borrar la
+// clave vieja, en vez de borrarlo sin más.
+export function repararClavesLegacy(rawMap) {
+  if (!rawMap) return {
+    limpio: [],
+    patch: null
+  };
+  const buenos = new Map(); // id -> movimiento, ya bajo su clave correcta
+  for (const [clave, entry] of Object.entries(rawMap)) {
+    if (entry && entry.id && clave === entry.id) buenos.set(entry.id, entry);
+  }
+  const patch = {};
+  let huboClavesViejas = false;
+  for (const [clave, entry] of Object.entries(rawMap)) {
+    if (!entry || !entry.id || clave === entry.id) continue;
+    huboClavesViejas = true;
+    patch[clave] = null; // borra la clave vieja
+    if (!buenos.has(entry.id)) {
+      buenos.set(entry.id, entry);
+      patch[entry.id] = entry; // no había copia buena: la recupera bajo su id
+    }
+  }
+  return {
+    limpio: [...buenos.values()],
+    patch: huboClavesViejas ? patch : null
+  };
+}
 export function entriesSinId(entries, id) {
   return entries.filter(e => e.id !== id);
 }

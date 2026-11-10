@@ -13,14 +13,14 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, AlertTriangle, PiggyBank, Plus, ArrowDownCircle, ArrowUpCircle, CreditCard, TrendingUp, LogOut } from "lucide-react";
 import { PERSONAS, fmt, CATEGORIAS_DEFAULT, pctPorDefecto, iconoDe, ETIQUETAS_TARJETA_DEFAULT, monthKey, monthLabel, shiftMonth } from "./constants.js";
-import { storageSetRetry, storageUpdateRetry, fetchCotizacionLive, arrayAMapaPorId, mapaAArray } from "./storage.js";
+import { storageSetRetry, storageUpdateRetry, fetchCotizacionLive, arrayAMapaPorId } from "./storage.js";
 import { Shell, EtiquetasTarjetaPicker, CotizacionWidget, SaldosForm } from "./components.js";
 import { PersonColumn } from "./pantalla-mi-cuenta.js";
 import { AhorrosSection } from "./pantalla-ahorros.js";
 import { HogarSection } from "./pantalla-hogar.js";
 import { escribirCuotas, removeInstallments, detectarCuotasFaltantes, reintentarCuotasFaltantes, calcularRegistrosTarjetaHogarAReparar } from "./logica-tarjetas.js";
 import { montoArsDeFijo, entriesActualizadasPorFijos, entriesActualizadasPorHogar, armarEntriesFijosFaltantes, armarEntriesHogarFaltantes, dedupeFijoEntries } from "./logica-fijos.js";
-import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta, idAjusteSaldo, armarAjusteSaldo, gastadoParaSaldos, pendienteParaSaldos } from "./logica-movimientos.js";
+import { armarMovimientoDesdeForm, escribirEntriesEnMes, entriesSinId, entriesConPagadoToggleado, entriesConTarjetaPagada, sugerirMontoPorDescripcion, sugerirMontoTarjetaPorEtiqueta, idAjusteSaldo, armarAjusteSaldo, gastadoParaSaldos, pendienteParaSaldos, repararClavesLegacy } from "./logica-movimientos.js";
 import { entrarOCrearCuenta, suscribirseASesion, cerrarSesion, buscarJugadorPorUid, obtenerJugadoresVinculados, vincularJugadorPropio } from "./auth.js";
 
 export function LibroFamiliar() {
@@ -382,7 +382,21 @@ export function LibroFamiliar() {
       let ent = [];
       try {
         const r = await window.storage.get(`entries:${m}`, true);
-        ent = r ? mapaAArray(JSON.parse(r.value)) : [];
+        if (r) {
+          const rawMap = JSON.parse(r.value);
+          // Autocura meses con movimientos guardados bajo una clave vieja
+          // (ver repararClavesLegacy) — si encuentra alguna, dispara la
+          // limpieza en segundo plano (sin esperarla, no bloquea la carga
+          // del mes) y mientras tanto usa la lista ya sin duplicados.
+          const {
+            limpio,
+            patch
+          } = repararClavesLegacy(rawMap);
+          ent = limpio;
+          if (patch) storageUpdateRetry(`entries:${m}`, JSON.stringify(patch), true);
+        } else {
+          ent = [];
+        }
       } catch {
         ent = [];
       }
@@ -472,7 +486,17 @@ export function LibroFamiliar() {
   const refreshEntriesSilent = useCallback(async m => {
     try {
       const r = await window.storage.get(`entries:${m}`, true);
-      setEntries(r ? mapaAArray(JSON.parse(r.value)) : []);
+      if (r) {
+        const rawMap = JSON.parse(r.value);
+        const {
+          limpio,
+          patch
+        } = repararClavesLegacy(rawMap);
+        setEntries(limpio);
+        if (patch) storageUpdateRetry(`entries:${m}`, JSON.stringify(patch), true);
+      } else {
+        setEntries([]);
+      }
     } catch {
       // si falla, no mostramos error — se reintenta solo en el próximo ciclo
     }
